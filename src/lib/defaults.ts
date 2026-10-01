@@ -1,19 +1,20 @@
+import { DEFAULT_LOGO_DATA_URL } from './defaultLogo';
 import type { FirmSettings } from './types';
 
-// Defaults used until an ADMIN saves the firm settings. Firm-specific details
-// (name, address, GSTIN, bank…) are intentionally blank: they are entered in
-// Settings, never hardcoded.
-export const DEFAULT_BRAND_COLOR = '#1a3a5c';
+// Starting values (from the firm's visiting card), used until an ADMIN saves
+// Settings. Everything here can be edited later in Settings → Firm details.
+// GSTIN, PAN and bank/UPI details are not on the card, so they start blank.
+export const DEFAULT_BRAND_COLOR = '#0c629b';
 
 export const DEFAULT_SETTINGS: FirmSettings = {
-  name: '',
-  tagline: '',
-  proprietor: '',
-  address: '',
+  name: 'Lingeshwar Kaparthi & Associates',
+  tagline: 'Chartered Accountants',
+  proprietor: 'CA Lingeshwar, ACA',
+  address: '7-1-59, Subhash Road,\nOpp. to Sri Vaibhavam Shopping Mall,\nSiddipet, Telangana - 502103',
   stateName: 'Telangana',
   stateCode: '36',
-  phone: '',
-  email: '',
+  phone: '+91 62817 92541',
+  email: 'ca.Lingeshwar@gmail.com',
   website: '',
   gstin: '',
   pan: '',
@@ -21,7 +22,7 @@ export const DEFAULT_SETTINGS: FirmSettings = {
   defaultTerms:
     'Payment is due within 15 days of the invoice date.\nPlease quote the invoice number when making payment.',
   brandColor: DEFAULT_BRAND_COLOR,
-  logoDataUrl: null,
+  logoDataUrl: DEFAULT_LOGO_DATA_URL,
   gstRateBp: 1800,
   sacCodes: [
     { code: '998221', description: 'Financial auditing services' },

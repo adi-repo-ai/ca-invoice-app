@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --brand: #1a3a5c;
+  --brand: #0c629b;
 }
 
 @layer base {

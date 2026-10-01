@@ -87,7 +87,7 @@ export default function Settings() {
     <form onSubmit={submit} className="space-y-5">
       <PageHeader title="Settings" actions={<Button type="submit" busy={busy}>Save settings</Button>} />
       <SettingsTabs />
-      {!saved && <Alert kind="info">Settings have not been saved yet. Fill in your firm details and save before issuing invoices.</Alert>}
+      {!saved && <Alert kind="info">These are the starting details from your visiting card. Add your GSTIN, PAN and bank / UPI details, check everything, then click Save settings (needed once before creating invoices). You can change any of it later.</Alert>}
       {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
 
       <Card title="Firm details">
