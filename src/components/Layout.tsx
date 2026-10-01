@@ -9,16 +9,9 @@ export function Layout() {
   const { settings } = useSettings();
   const [open, setOpen] = useState(false);
   const links = [
-    { to: '/', label: 'Dashboard', end: true },
-    { to: '/invoices', label: 'Invoices' },
+    { to: '/', label: 'Invoices', end: true },
     { to: '/clients', label: 'Clients' },
-    ...(role === 'ADMIN'
-      ? [
-          { to: '/settings', label: 'Settings' },
-          { to: '/users', label: 'Users' },
-          { to: '/backup', label: 'Backup' },
-        ]
-      : []),
+    ...(role === 'ADMIN' ? [{ to: '/settings', label: 'Settings' }] : []),
   ];
   const linkCls = ({ isActive }: { isActive: boolean }) =>
     `block rounded-md px-3 py-2 text-sm font-medium ${isActive ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`;

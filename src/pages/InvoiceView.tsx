@@ -1,7 +1,6 @@
 import { writeBatch } from 'firebase/firestore';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { useParams } from 'react-router-dom';
-import { callFunction } from '../api';
+import { useLocation, useParams } from 'react-router-dom';
 import { useActor, useAuth } from '../auth';
 import { Alert, Button, Card, Field, LinkButton, Loading, Money, PageHeader, StatusBadge, errorMessage } from '../components/ui';
 import { appendAudit, listInvoiceAudit, type AuditEntry } from '../data/audit';
@@ -13,14 +12,14 @@ import { PAYMENT_MODES, type FirmSettings, type PaymentMode } from '../lib/types
 import { normaliseWhatsapp } from '../lib/validation';
 import { useSettings } from '../settings-context';
 
-type Panel = '' | 'email' | 'payment' | 'cancel';
+type Panel = '' | 'payment' | 'cancel';
 
 async function makePdf(inv: InvoiceRow, settings: FirmSettings) {
   const { generateInvoicePdf } = await import('../pdf/generate');
   return generateInvoicePdf(inv, settings);
 }
 
-function whatsappMessage(inv: InvoiceRow, settings: FirmSettings): string {
+function messageText(inv: InvoiceRow, settings: FirmSettings): string {
   const firm = inv.firm ?? settings;
   const lines = [
     `Dear ${inv.client.contactPerson || inv.client.name},`,
@@ -41,7 +40,13 @@ export default function InvoiceView() {
   const [panel, setPanel] = useState<Panel>('');
   const [msg, setMsg] = useState<{ kind: 'error' | 'success' | 'info'; text: string } | null>(null);
   const [busy, setBusy] = useState('');
-  const [waLink, setWaLink] = useState('');
+  const [openLink, setOpenLink] = useState<{ channel: 'email' | 'whatsapp'; href: string } | null>(null);
+  const location = useLocation();
+  useEffect(() => {
+    if ((location.state as { justIssued?: boolean } | null)?.justIssued) {
+      setMsg({ kind: 'success', text: 'Invoice created. Send it to your client below.' });
+    }
+  }, [location.state]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -82,19 +87,26 @@ export default function InvoiceView() {
       downloadBlob(blob, fileName);
     });
 
-  const shareWhatsapp = () =>
-    act('wa', async () => {
-      if (!wa) throw new Error('This client has no valid WhatsApp number. Edit the client to add one.');
-      const text = whatsappMessage(inv, settings);
-      const link = `https://wa.me/${wa}?text=${encodeURIComponent(text)}`;
+  /**
+   * Send via the user's own apps. On phones the share sheet opens with the
+   * PDF attached (pick Gmail / WhatsApp). On computers the PDF is downloaded
+   * and a ready-written email or WhatsApp chat opens for the user to attach it.
+   */
+  const send = (channel: 'email' | 'whatsapp') =>
+    act(channel, async () => {
+      if (channel === 'whatsapp' && !wa) {
+        throw new Error('This client has no valid WhatsApp number. Open the client and add one.');
+      }
+      const firmName = (inv.firm ?? settings).name;
+      const subject = `Invoice ${inv.number} from ${firmName}`;
+      const text = messageText(inv, settings);
       const { blob, fileName } = await makePdf(inv, settings);
       const file = new File([blob], fileName, { type: 'application/pdf' });
-      let how = 'download';
+      let method = 'download';
       if (navigator.canShare?.({ files: [file] })) {
-        // Mobile: native share sheet with the PDF attached (pick WhatsApp).
         try {
-          await navigator.share({ files: [file], text });
-          how = 'web-share';
+          await navigator.share({ files: [file], title: subject, text });
+          method = 'share-sheet';
         } catch (e) {
           if ((e as Error).name === 'AbortError') return;
           throw e;
@@ -103,18 +115,28 @@ export default function InvoiceView() {
         const { downloadBlob } = await import('../pdf/generate');
         downloadBlob(blob, fileName);
       }
-      setWaLink(link);
-      if (how === 'download') window.open(link, '_blank', 'noopener');
+      const link =
+        channel === 'whatsapp'
+          ? `https://wa.me/${wa}?text=${encodeURIComponent(text)}`
+          : `mailto:${encodeURIComponent(inv.client.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
+              `${text}\n\n(Invoice PDF attached: ${fileName})`,
+            )}`;
+      setOpenLink({ channel, href: link });
+      if (method === 'download') {
+        if (channel === 'whatsapp') window.open(link, '_blank', 'noopener');
+        else window.location.href = link;
+      }
       const batch = writeBatch(db);
-      appendAudit(db, batch, actor, inv.id, inv.number ?? null, 'SEND_WHATSAPP', {
-        channel: 'whatsapp',
-        recipient: `+${wa}`,
-        method: how,
+      appendAudit(db, batch, actor, inv.id, inv.number ?? null, channel === 'email' ? 'SEND_EMAIL' : 'SEND_WHATSAPP', {
+        channel,
+        recipient: channel === 'email' ? inv.client.email : `+${wa}`,
+        method,
       });
       await batch.commit();
-      return how === 'download'
-        ? `PDF downloaded. WhatsApp opened for +${wa}: attach ${fileName} in the chat.`
-        : `Shared via the share sheet. Use the link below to open the chat with +${wa} if needed.`;
+      if (method === 'share-sheet') return 'Shared with the PDF attached.';
+      return channel === 'email'
+        ? `PDF downloaded (${fileName}). Your email app opened with the message ready: attach the PDF and send.`
+        : `PDF downloaded (${fileName}). WhatsApp opened for +${wa}: attach the PDF in the chat and send.`;
     });
 
   return (
@@ -134,61 +156,58 @@ export default function InvoiceView() {
               <Button
                 busy={busy === 'issue'}
                 onClick={() => {
-                  if (!saved) return setMsg({ kind: 'error', text: 'An administrator must save the firm settings before invoices can be issued.' });
-                  if (window.confirm('Issue this invoice? It will get the next number and become read-only.'))
-                    act('issue', async () => `Issued as ${await issueInvoice(db, actor, inv.id, settings)}.`);
+                  if (!saved) return setMsg({ kind: 'error', text: 'Please fill in and save Settings before creating invoices.' });
+                  if (window.confirm('Create this invoice? It gets the next invoice number and can no longer be edited.'))
+                    act('issue', async () => `Invoice ${await issueInvoice(db, actor, inv.id, settings)} created. Send it to your client below.`);
                 }}
               >
-                Issue invoice
+                Create invoice
               </Button>
             </>
-          ) : (
-            <>
-              <Button variant="secondary" busy={busy === 'pdf'} onClick={download}>
-                Download PDF
-              </Button>
-              {sendable && (
-                <>
-                  <Button variant="secondary" onClick={() => setPanel(panel === 'email' ? '' : 'email')}>
-                    Email
-                  </Button>
-                  <Button variant="secondary" busy={busy === 'wa'} onClick={shareWhatsapp} className="!border-green-600 !text-green-700">
-                    Share on WhatsApp
-                  </Button>
-                </>
-              )}
-              {inv.status === 'ISSUED' && (
-                <Button onClick={() => setPanel(panel === 'payment' ? '' : 'payment')}>Record payment</Button>
-              )}
-              {inv.status === 'ISSUED' && role === 'ADMIN' && (
-                <Button variant="danger" onClick={() => setPanel(panel === 'cancel' ? '' : 'cancel')}>
-                  Cancel invoice
-                </Button>
-              )}
-            </>
-          )
+          ) : undefined
         }
       />
       {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
-      {waLink && (
-        <Alert kind="info">
-          <a className="font-medium underline" href={waLink} target="_blank" rel="noopener noreferrer">
-            Open WhatsApp chat with +{wa}
-          </a>
-        </Alert>
+
+      {issuedLike && (
+        <Card title={sendable ? 'Send to client' : 'Invoice PDF'}>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Button variant="secondary" className="py-3" busy={busy === 'pdf'} onClick={download}>
+              ⬇ Download PDF
+            </Button>
+            {sendable && (
+              <>
+                <Button variant="secondary" className="py-3" busy={busy === 'email'} onClick={() => send('email')}>
+                  ✉ Email{inv.client.email ? ` ${inv.client.email}` : ''}
+                </Button>
+                <Button variant="secondary" className="!border-green-600 py-3 !text-green-700" busy={busy === 'whatsapp'} onClick={() => send('whatsapp')}>
+                  WhatsApp{wa ? ` +${wa}` : ''}
+                </Button>
+              </>
+            )}
+          </div>
+          {openLink && (
+            <p className="mt-3 text-sm">
+              <a className="font-medium text-[var(--brand)] underline" href={openLink.href} target="_blank" rel="noopener noreferrer">
+                {openLink.channel === 'email' ? 'Open the email again' : `Open WhatsApp chat with +${wa}`}
+              </a>
+            </p>
+          )}
+          {inv.status === 'ISSUED' && (
+            <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+              <Button variant="ghost" onClick={() => setPanel(panel === 'payment' ? '' : 'payment')}>
+                ✓ Mark as paid
+              </Button>
+              {role === 'ADMIN' && (
+                <Button variant="ghost" className="!text-red-600" onClick={() => setPanel(panel === 'cancel' ? '' : 'cancel')}>
+                  Cancel invoice
+                </Button>
+              )}
+            </div>
+          )}
+        </Card>
       )}
 
-      {panel === 'email' && (
-        <EmailPanel
-          inv={inv}
-          settings={settings}
-          onDone={(text) => {
-            setPanel('');
-            setMsg({ kind: 'success', text });
-            load();
-          }}
-        />
-      )}
       {panel === 'payment' && (
         <PaymentPanel
           inv={inv}
@@ -368,69 +387,6 @@ function TotalRow({ label, paise }: { label: string; paise: number }) {
   );
 }
 
-function EmailPanel({ inv, settings, onDone }: { inv: InvoiceRow; settings: FirmSettings; onDone: (msg: string) => void }) {
-  const firm = inv.firm ?? settings;
-  const [to, setTo] = useState(inv.client.email);
-  const [subject, setSubject] = useState(`Invoice ${inv.number} from ${firm.name}`);
-  const [body, setBody] = useState(
-    [
-      `Dear ${inv.client.contactPerson || inv.client.name},`,
-      '',
-      `Please find attached our invoice ${inv.number} dated ${inv.invoiceDate} for Rs. ${formatPaise(inv.totals.grandTotalPaise)}, due by ${inv.dueDate}.`,
-      '',
-      firm.bank.accountNumber
-        ? `Bank: ${firm.bank.accountName}, A/c ${firm.bank.accountNumber}, IFSC ${firm.bank.ifsc}${firm.bank.upiId ? `, UPI ${firm.bank.upiId}` : ''}`
-        : '',
-      '',
-      'Regards,',
-      firm.name,
-    ]
-      .filter((l, i, arr) => !(l === '' && arr[i - 1] === ''))
-      .join('\n'),
-  );
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-
-  async function send(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      const { generateInvoicePdf, blobToBase64 } = await import('../pdf/generate');
-      const { blob } = await generateInvoicePdf(inv, settings);
-      const pdfBase64 = await blobToBase64(blob);
-      await callFunction('send-invoice-email', { invoiceId: inv.id, to, subject, body, pdfBase64 });
-      onDone(`Email sent to ${to} with the PDF attached.`);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Card title="Email invoice">
-      <form onSubmit={send} className="space-y-3">
-        {error && <Alert>{error}</Alert>}
-        <Field label="To">
-          <input type="email" required value={to} onChange={(e) => setTo(e.target.value)} />
-        </Field>
-        <Field label="Subject">
-          <input required maxLength={200} value={subject} onChange={(e) => setSubject(e.target.value)} />
-        </Field>
-        <Field label="Message">
-          <textarea rows={8} required maxLength={5000} value={body} onChange={(e) => setBody(e.target.value)} />
-        </Field>
-        <div className="flex justify-end">
-          <Button type="submit" busy={busy}>
-            Send with PDF
-          </Button>
-        </div>
-      </form>
-    </Card>
-  );
-}
-
 function PaymentPanel({
   inv,
   busy,
@@ -488,7 +444,7 @@ function PaymentPanel({
         </Field>
         <div className="sm:col-span-2 lg:col-span-5 flex justify-end">
           <Button type="submit" busy={busy}>
-            Mark as paid
+            Save payment
           </Button>
         </div>
       </form>

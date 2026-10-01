@@ -1,6 +1,7 @@
 import type { DocumentSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ClientPicker } from '../components/ClientPicker';
+import { Summary } from '../components/Summary';
 import { InvoiceTable } from '../components/InvoiceTable';
 import { Alert, Button, Card, Field, LinkButton, Loading, PageHeader, errorMessage } from '../components/ui';
 import type { ClientRow } from '../data/clients';
@@ -39,6 +40,7 @@ export default function Invoices() {
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
   const filter: InvoiceFilter = { clientId: client?.id, status, from: from || undefined, to: to || undefined };
   const key = JSON.stringify(filter);
@@ -83,49 +85,51 @@ export default function Invoices() {
     }
   }
 
+  const filtering = Boolean(client || status || from || to);
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Invoices"
-        actions={
-          <>
-            <Button variant="secondary" busy={busy === 'csv'} onClick={exportCsv}>
-              Export CSV
-            </Button>
-            <LinkButton to="/invoices/new">New invoice</LinkButton>
-          </>
-        }
-      />
+      <PageHeader title="Invoices" actions={<LinkButton to="/invoices/new">+ New invoice</LinkButton>} />
+      <Summary />
       {error && <Alert>{error}</Alert>}
       <Card>
-        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
-          <Field label="Client" className="lg:col-span-2">
-            <div className="flex gap-2">
-              <div className="min-w-0 flex-1">
-                <ClientPicker value={client} onChange={setClient} />
-              </div>
-              {client && (
-                <Button variant="ghost" onClick={() => setClient(null)}>
-                  Clear
-                </Button>
-              )}
-            </div>
-          </Field>
-          <Field label="Status">
-            <select value={status} onChange={(e) => setStatus(e.target.value as InvoiceStatus | '')}>
-              <option value="">All</option>
-              {STATUSES.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="From">
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </Field>
-          <Field label="To">
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </Field>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <Button variant="ghost" onClick={() => setShowFilters(!showFilters)}>
+            {showFilters ? 'Hide filters' : `Filter${filtering ? ' (on)' : ''}`}
+          </Button>
+          <Button variant="ghost" busy={busy === 'csv'} onClick={exportCsv}>
+            Export CSV
+          </Button>
         </div>
+        {showFilters && (
+          <div className="mb-4 grid gap-3 rounded-md bg-slate-50 p-3 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
+            <Field label="Client" className="lg:col-span-2">
+              <div className="flex gap-2">
+                <div className="min-w-0 flex-1">
+                  <ClientPicker value={client} onChange={setClient} />
+                </div>
+                {client && (
+                  <Button variant="ghost" onClick={() => setClient(null)}>
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </Field>
+            <Field label="Status">
+              <select value={status} onChange={(e) => setStatus(e.target.value as InvoiceStatus | '')}>
+                <option value="">All</option>
+                {STATUSES.map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="From">
+              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </Field>
+            <Field label="To">
+              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </Field>
+          </div>
+        )}
         {!rows ? <Loading /> : <InvoiceTable rows={rows} />}
         {hasMore && (
           <div className="mt-3 text-center">

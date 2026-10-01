@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { SettingsTabs } from '../components/SettingsTabs';
 import { useAuth } from '../auth';
 import { Alert, Button, Card, Field, PageHeader, errorMessage } from '../components/ui';
 import { saveSettings } from '../data/settings';
@@ -84,7 +85,8 @@ export default function Settings() {
 
   return (
     <form onSubmit={submit} className="space-y-5">
-      <PageHeader title="Firm settings" actions={<Button type="submit" busy={busy}>Save settings</Button>} />
+      <PageHeader title="Settings" actions={<Button type="submit" busy={busy}>Save settings</Button>} />
+      <SettingsTabs />
       {!saved && <Alert kind="info">Settings have not been saved yet. Fill in your firm details and save before issuing invoices.</Alert>}
       {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
 

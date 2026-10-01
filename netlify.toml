@@ -10,15 +10,15 @@
   # The Firebase *web* config is public by design (it is compiled into the
   # browser bundle), so exclude those keys from Netlify's secrets scanning.
   # FIREBASE_PROJECT_ID has the same value as VITE_FIREBASE_PROJECT_ID.
-  # Real secrets (FIREBASE_PRIVATE_KEY, SMTP_PASS, ...) are still scanned.
+  # Real secrets (FIREBASE_PRIVATE_KEY, SETUP_CODE) are still scanned.
   SECRETS_SCAN_OMIT_KEYS = "VITE_FIREBASE_API_KEY,VITE_FIREBASE_AUTH_DOMAIN,VITE_FIREBASE_PROJECT_ID,VITE_FIREBASE_APP_ID,FIREBASE_PROJECT_ID"
 
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  # firebase-admin and nodemailer are shipped as regular node_modules
-  # instead of being bundled by esbuild (they rely on dynamic requires).
-  external_node_modules = ["firebase-admin", "nodemailer"]
+  # firebase-admin is shipped as a regular node_module instead of being
+  # bundled by esbuild (it relies on dynamic requires).
+  external_node_modules = ["firebase-admin"]
 
 # Local development: `npx netlify-cli dev` serves Vite + functions on :8888
 [dev]

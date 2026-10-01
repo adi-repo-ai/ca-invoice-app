@@ -8,7 +8,6 @@ import { auth } from './firebase';
 import Login from './pages/Login';
 import { SettingsProvider } from './settings-context';
 
-const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Invoices = lazy(() => import('./pages/Invoices'));
 const InvoiceEdit = lazy(() => import('./pages/InvoiceEdit'));
 const InvoiceView = lazy(() => import('./pages/InvoiceView'));
@@ -90,8 +89,8 @@ export default function App() {
       >
         {(
           [
-            ['/', <Dashboard />],
-            ['/invoices', <Invoices />],
+            ['/', <Invoices />],
+            ['/invoices', <Navigate to="/" replace />],
             ['/invoices/new', <InvoiceEdit />],
             ['/invoices/:id', <InvoiceView />],
             ['/invoices/:id/edit', <InvoiceEdit />],
@@ -100,8 +99,10 @@ export default function App() {
             ['/clients/:id', <ClientView />],
             ['/clients/:id/edit', <ClientEdit />],
             ['/settings', <AdminOnly><Settings /></AdminOnly>],
-            ['/users', <AdminOnly><Users /></AdminOnly>],
-            ['/backup', <AdminOnly><Backup /></AdminOnly>],
+            ['/settings/users', <AdminOnly><Users /></AdminOnly>],
+            ['/settings/backup', <AdminOnly><Backup /></AdminOnly>],
+            ['/users', <Navigate to="/settings/users" replace />],
+            ['/backup', <Navigate to="/settings/backup" replace />],
           ] as [string, ReactNode][]
         ).map(([path, el]) => (
           <Route key={path} path={path} element={<Suspense fallback={<Loading />}>{el}</Suspense>} />

@@ -234,13 +234,12 @@ service cloud.firestore {
     }
 
     // ---------- audit log (append-only) ----------
-    // SEND_EMAIL entries are written only by the Netlify Function (Admin SDK).
     match /auditLog/{entryId} {
       allow read: if isStaff();
       allow create: if isStaff()
         && request.resource.data.keys().hasOnly(['invoiceId', 'invoiceNumber', 'action', 'uid',
             'userEmail', 'at', 'details'])
-        && request.resource.data.action in ['CREATE', 'EDIT', 'ISSUE', 'PAYMENT', 'CANCEL', 'SEND_WHATSAPP']
+        && request.resource.data.action in ['CREATE', 'EDIT', 'ISSUE', 'PAYMENT', 'CANCEL', 'SEND_EMAIL', 'SEND_WHATSAPP']
         && request.resource.data.invoiceId is string
         && request.resource.data.uid == uid()
         && request.resource.data.userEmail == request.auth.token.email

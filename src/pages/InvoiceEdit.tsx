@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useActor } from '../auth';
 import { ClientPicker } from '../components/ClientPicker';
+import { QuickClientForm } from '../components/QuickClientForm';
 import { Alert, Button, Card, Field, Loading, Money, PageHeader, errorMessage } from '../components/ui';
 import { getClient, type ClientRow } from '../data/clients';
 import { clientSnapshot, createDraft, getInvoice, issueInvoice, updateDraft, type DraftInput } from '../data/invoices';
@@ -41,6 +42,7 @@ export default function InvoiceEdit() {
   const [terms, setTerms] = useState(settings.defaultTerms);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<'' | 'save' | 'issue'>('');
+  const [addingClient, setAddingClient] = useState(false);
   // Remembers a draft created by this form so a retry updates it instead of
   // creating a duplicate (e.g. when "Save & issue" saved but issuing failed).
   const createdId = useRef<string | undefined>(undefined);
@@ -105,7 +107,7 @@ export default function InvoiceEdit() {
     if (parsed.problems.length || !parsed.input) return setError(parsed.problems.join(' '));
     if (issue) {
       if (!saved) return setError('An administrator must save the firm settings before invoices can be issued.');
-      if (!window.confirm('Issue this invoice? It will get the next invoice number and can no longer be edited.')) return;
+      if (!window.confirm('Create this invoice? It gets the next invoice number and can no longer be edited.')) return;
     }
     setBusy(issue ? 'issue' : 'save');
     setError('');
@@ -114,7 +116,7 @@ export default function InvoiceEdit() {
       if (invoiceId) await updateDraft(db, actor, invoiceId, parsed.input, settings);
       else invoiceId = createdId.current = await createDraft(db, actor, parsed.input, settings);
       if (issue) await issueInvoice(db, actor, invoiceId, settings);
-      navigate(`/invoices/${invoiceId}`);
+      navigate(`/invoices/${invoiceId}`, { state: { justIssued: issue } });
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -133,14 +135,26 @@ export default function InvoiceEdit() {
       <PageHeader title={id ? 'Edit draft invoice' : 'New invoice'} />
       {error && <Alert>{error}</Alert>}
 
-      <Card title="Client">
-        <ClientPicker value={client} onChange={setClient} />
-        <p className="mt-2 text-xs text-slate-500">
-          Not listed? <Link className="text-[var(--brand)] underline" to="/clients/new">Add a client</Link> first.
-        </p>
+      <Card title="1. Client">
+        {addingClient ? (
+          <QuickClientForm
+            onCreated={(c) => {
+              setClient(c);
+              setAddingClient(false);
+            }}
+            onCancel={() => setAddingClient(false)}
+          />
+        ) : (
+          <>
+            <ClientPicker value={client} onChange={setClient} />
+            <button type="button" className="mt-2 text-sm font-medium text-[var(--brand)]" onClick={() => setAddingClient(true)}>
+              + Add a new client
+            </button>
+          </>
+        )}
       </Card>
 
-      <Card title="Services (taxable)">
+      <Card title="2. Services">
         <div className="space-y-3">
           {items.map((r, i) => {
             const amount = parsed.preview.items[i]?.amountPaise ?? 0;
@@ -179,12 +193,17 @@ export default function InvoiceEdit() {
           <Button type="button" variant="secondary" onClick={() => setItems([...items, { description: '', sac: settings.sacCodes[0]?.code ?? '', qty: '1', rate: '' }])}>
             Add line
           </Button>
+          {reimbs.length === 0 && (
+            <button type="button" className="ml-3 text-sm font-medium text-[var(--brand)]" onClick={() => setReimbs([{ description: '', amount: '' }])}>
+              + Add reimbursement (no GST)
+            </button>
+          )}
         </div>
       </Card>
 
-      <Card title="Reimbursements / out-of-pocket expenses (no GST)">
+      {reimbs.length > 0 && (
+      <Card title="Reimbursements (no GST) — e.g. government / ROC fees paid for the client">
         <div className="space-y-3">
-          {reimbs.length === 0 && <p className="text-sm text-slate-500">E.g. government or ROC fees paid on the client's behalf.</p>}
           {reimbs.map((r, i) => (
             <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-12 sm:items-end">
               <Field label="Description" className="col-span-2 sm:col-span-8">
@@ -201,16 +220,20 @@ export default function InvoiceEdit() {
             </div>
           ))}
           <Button type="button" variant="secondary" onClick={() => setReimbs([...reimbs, { description: '', amount: '' }])}>
-            Add reimbursement
+            Add another
           </Button>
         </div>
       </Card>
+      )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card title="Terms">
-          <textarea rows={5} className="w-full" value={terms} onChange={(e) => setTerms(e.target.value)} />
+      <div className="grid gap-4 md:grid-cols-2 md:items-start">
+        <Card>
+          <details>
+            <summary className="cursor-pointer text-sm font-semibold text-slate-800">Terms printed on the invoice (optional to change)</summary>
+            <textarea rows={5} className="mt-3 w-full" value={terms} onChange={(e) => setTerms(e.target.value)} />
+          </details>
         </Card>
-        <Card title="Totals">
+        <Card title="3. Total">
           <dl className="space-y-1 text-sm">
             <Row label="Taxable value" paise={t.taxablePaise} />
             {intra ? (
@@ -241,10 +264,10 @@ export default function InvoiceEdit() {
 
       <div className="sticky bottom-0 -mx-3 flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0">
         <Button variant="secondary" busy={busy === 'save'} disabled={!!busy} onClick={() => save(false)}>
-          Save draft
+          Save as draft
         </Button>
         <Button busy={busy === 'issue'} disabled={!!busy} onClick={() => save(true)}>
-          Save &amp; issue
+          Create invoice
         </Button>
       </div>
     </div>

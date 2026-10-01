@@ -1,3 +1,4 @@
+import { SettingsTabs } from '../components/SettingsTabs';
 import { collection, doc, getDoc, getDocs, Timestamp, type Firestore } from 'firebase/firestore';
 import { useState } from 'react';
 import { Alert, Button, Card, PageHeader, errorMessage } from '../components/ui';
@@ -53,7 +54,8 @@ export default function Backup() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Backup" />
+      <PageHeader title="Settings" />
+      <SettingsTabs />
       {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
       <Card title="Export all data">
         <p className="mb-4 text-sm text-slate-600">

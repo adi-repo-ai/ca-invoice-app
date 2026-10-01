@@ -1,6 +1,7 @@
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { callFunction } from '../api';
+import { SettingsTabs } from '../components/SettingsTabs';
 import { useAuth } from '../auth';
 import { Alert, Button, Card, Field, Loading, PageHeader, errorMessage } from '../components/ui';
 import { db } from '../firebase';
@@ -59,7 +60,8 @@ export default function Users() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Users" />
+      <PageHeader title="Settings" />
+      <SettingsTabs />
       {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
       <Card title="Add a user">
         <form onSubmit={create} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
