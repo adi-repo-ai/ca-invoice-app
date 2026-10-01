@@ -56,6 +56,13 @@ describe('admin-users function', () => {
     expect((await handler(post('admin-users', { action: 'enable', uid }, adminToken))).status).toBe(200);
     expect((await handler(post('admin-users', { action: 'setRole', uid, role: 'ADMIN' }, adminToken))).status).toBe(200);
     expect((await adminAuth().getUser(uid)).customClaims?.role).toBe('ADMIN');
+
+    // Delete -> sign-in account and user record are gone.
+    expect((await handler(post('admin-users', { action: 'delete', uid }, adminToken))).status).toBe(200);
+    await expect(adminAuth().getUser(uid)).rejects.toMatchObject({ code: 'auth/user-not-found' });
+    expect((await adminDb().doc(`users/${uid}`).get()).exists).toBe(false);
+    // Deleting an already-deleted user is harmless.
+    expect((await handler(post('admin-users', { action: 'delete', uid }, adminToken))).status).toBe(200);
   });
 
   it('validates input and prevents admins locking themselves out', async () => {
@@ -65,5 +72,7 @@ describe('admin-users function', () => {
     expect(badRole.status).toBe(400);
     const self = await handler(post('admin-users', { action: 'disable', uid: adminUid }, adminToken));
     expect(self.status).toBe(400);
+    const selfDelete = await handler(post('admin-users', { action: 'delete', uid: adminUid }, adminToken));
+    expect(selfDelete.status).toBe(400);
   });
 });

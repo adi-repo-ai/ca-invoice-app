@@ -1,5 +1,5 @@
 // ADMIN-only user management: create staff users, change roles, disable /
-// enable accounts and set a new password. Every call verifies the caller's
+// enable / delete accounts and set a new password. Every call verifies the caller's
 // Firebase ID token and ADMIN claim before doing anything.
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb } from './_shared/admin';
@@ -10,6 +10,7 @@ type Body =
   | { action: 'setRole'; uid: string; role: Role }
   | { action: 'disable'; uid: string }
   | { action: 'enable'; uid: string }
+  | { action: 'delete'; uid: string }
   | { action: 'setPassword'; uid: string; password: string };
 
 const ROLES: Role[] = ['ADMIN', 'STAFF'];
@@ -86,6 +87,28 @@ export default postHandler(async (req) => {
       const uid = checkUid(body.uid, caller.uid, 'enable');
       await auth.updateUser(uid, { disabled: false });
       await db.doc(`users/${uid}`).set({ disabled: false, ...stamp }, { merge: true });
+      return { ok: true };
+    }
+    case 'delete': {
+      // Removes the sign-in account, the user record, any pending invite and
+      // their private Home items. Invoices they created are kept.
+      const uid = checkUid(body.uid, caller.uid, 'delete');
+      const userDoc = await db.doc(`users/${uid}`).get();
+      let email = String(userDoc.get('email') ?? '');
+      try {
+        email = (await auth.getUser(uid)).email ?? email;
+        await auth.deleteUser(uid);
+      } catch (e) {
+        if ((e as { code?: string }).code !== 'auth/user-not-found') throw e;
+      }
+      const batch = db.batch();
+      batch.delete(db.doc(`users/${uid}`));
+      if (email) batch.delete(db.doc(`invites/${email.toLowerCase()}`));
+      for (const coll of ['tasks', 'events', 'notes', 'links']) {
+        const snap = await db.collection(coll).where('ownerUid', '==', uid).limit(400).get();
+        snap.docs.forEach((d) => batch.delete(d.ref));
+      }
+      await batch.commit();
       return { ok: true };
     }
     case 'setPassword': {

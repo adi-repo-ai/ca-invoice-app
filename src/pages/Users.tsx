@@ -207,6 +207,26 @@ export default function Users() {
                       >
                         {u.disabled ? 'Enable' : 'Disable'}
                       </Button>
+                      <Button
+                        variant="ghost"
+                        className="!text-red-600"
+                        busy={busy === u.uid + 'del'}
+                        onClick={async () => {
+                          const typed = await dialog.prompt({
+                            title: `Delete ${u.email}?`,
+                            message:
+                              'Their sign-in account and access are removed permanently, along with their private tasks, events, notes and links. Invoices they created are kept. To give them access again, add their email above. Type DELETE to confirm.',
+                            label: 'Type DELETE',
+                            confirmText: 'Delete user',
+                            danger: true,
+                          });
+                          if (typed === null) return;
+                          if (typed.trim().toUpperCase() !== 'DELETE') return setMsg({ kind: 'error', text: 'Not deleted: you must type DELETE to confirm.' });
+                          run(u.uid + 'del', { action: 'delete', uid: u.uid }, `${u.email} deleted.`);
+                        }}
+                      >
+                        Delete
+                      </Button>
                     </div>
                   )}
                 </li>

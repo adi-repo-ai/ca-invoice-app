@@ -287,7 +287,7 @@ describe('audit log', () => {
     const ref = await assertSucceeds(addDoc(collection(db, 'auditLog'), entry(STAFF.uid, STAFF.email)));
     await assertFails(addDoc(collection(db, 'auditLog'), entry(ADMIN.uid, ADMIN.email)));
     await assertSucceeds(addDoc(collection(db, 'auditLog'), entry(STAFF.uid, STAFF.email, 'SEND_EMAIL')));
-    await assertFails(addDoc(collection(db, 'auditLog'), entry(STAFF.uid, STAFF.email, 'DELETE')));
+    await assertFails(addDoc(collection(db, 'auditLog'), entry(STAFF.uid, STAFF.email, 'WIPE_EVERYTHING')));
     await assertFails(updateDoc(ref, { action: 'EDIT' }));
     await assertFails(deleteDoc(ref));
     await assertFails(deleteDoc(doc(fs(asAdmin(env)), 'auditLog', ref.id)));
