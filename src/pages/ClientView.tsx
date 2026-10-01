@@ -1,6 +1,7 @@
 import type { DocumentSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useDialog } from '../components/Dialog';
 import { InvoiceTable } from '../components/InvoiceTable';
 import { Alert, Button, Card, LinkButton, Loading, PageHeader, errorMessage } from '../components/ui';
 import { deleteClient, getClient, type ClientRow } from '../data/clients';
@@ -16,6 +17,7 @@ export default function ClientView() {
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const navigate = useNavigate();
+  const dialog = useDialog();
 
   useEffect(() => {
     if (!id) return;
@@ -62,7 +64,7 @@ export default function ClientView() {
               variant="danger"
               busy={deleting}
               onClick={async () => {
-                if (!window.confirm(`Delete ${client.name} from your client list? Existing invoices are kept unchanged.`)) return;
+                if (!(await dialog.confirm({ title: `Delete ${client.name}?`, message: 'They will be removed from your client list. Existing invoices are kept unchanged.', confirmText: 'Delete client', danger: true }))) return;
                 setDeleting(true);
                 try {
                   await deleteClient(db, client.id);
@@ -82,7 +84,7 @@ export default function ClientView() {
         <dl className="grid gap-3 sm:grid-cols-3">
           {line('Contact person', client.contactPerson)}
           {line('Email', client.email)}
-          {line('WhatsApp', client.whatsapp ? `+${client.whatsapp}` : '')}
+          {line('Mobile number', client.whatsapp ? `+${client.whatsapp}` : '')}
           {line('State', client.stateName)}
           {line('GSTIN', client.gstin)}
           {line('PAN', client.pan)}

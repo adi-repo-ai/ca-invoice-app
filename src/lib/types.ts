@@ -4,7 +4,7 @@ export type Role = 'ADMIN' | 'STAFF';
 export const ROLES: Role[] = ['ADMIN', 'STAFF'];
 
 export type InvoiceStatus = 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED';
-export type TaxType = 'INTRA' | 'INTER'; // INTRA = CGST+SGST, INTER = IGST
+export type TaxType = 'INTRA' | 'INTER' | 'NONE'; // INTRA = CGST+SGST, INTER = IGST, NONE = GST not charged
 
 /** A billable service: its SAC code, the default description and (optionally) a default price. */
 export interface SacCode {
@@ -37,6 +37,9 @@ export interface FirmSettings {
   defaultTerms: string;
   brandColor: string; // #rrggbb
   logoDataUrl: string | null; // base64 data URL, <= ~300 KB
+  signatureDataUrl: string | null; // signature image (data URL), printed on invoices
+  signatoryName: string; // printed under the signature, e.g. "CA Lingeshwar"
+  chargeGst: boolean; // false = plain "Invoice" with no GST; true = "Tax Invoice" with CGST/SGST/IGST
   gstRateBp: number; // GST rate in basis points, 1800 = 18%
   sacCodes: SacCode[];
   invoicePrefix: string; // 1–3 capital letters, e.g. "LKA"
@@ -84,6 +87,7 @@ export type ClientSnapshot = Omit<Client, 'nameLower'>;
 
 export interface FirmSnapshot {
   name: string;
+  signatoryName?: string;
   tagline?: string;
   proprietor?: string;
   address: string;
@@ -119,6 +123,8 @@ export interface Invoice {
   totals: InvoiceTotals;
   amountInWords: string;
   terms: string;
+  notes?: string; // free text printed on the invoice
+  includeSignature?: boolean; // print the signature image from Settings
   invoiceDate: string; // YYYY-MM-DD (draft: date created; issued: date of issue)
   dueDate: string; // YYYY-MM-DD
   // Set when issued:

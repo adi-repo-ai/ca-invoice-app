@@ -18,7 +18,8 @@ export function lineAmount(qty: number, ratePaise: number): number {
 }
 
 /** Intra-state (same state code as the firm) => CGST + SGST, else IGST. */
-export function taxTypeFor(firmStateCode: string, clientStateCode: string): TaxType {
+export function taxTypeFor(firmStateCode: string, clientStateCode: string, chargeGst = true): TaxType {
+  if (!chargeGst) return 'NONE';
   return firmStateCode === clientStateCode ? 'INTRA' : 'INTER';
 }
 
@@ -28,6 +29,7 @@ export interface ComputeInput {
   gstRateBp: number; // 1800 = 18%
   firmStateCode: string;
   clientStateCode: string;
+  chargeGst?: boolean; // default true; false = no GST at all
 }
 
 export interface ComputeResult {
@@ -57,7 +59,7 @@ export function computeInvoice(input: ComputeInput): ComputeResult {
 
   const taxablePaise = items.reduce((s, i) => s + i.amountPaise, 0);
   const reimbursementsPaise = reimbursements.reduce((s, r) => s + r.amountPaise, 0);
-  const taxType = taxTypeFor(input.firmStateCode, input.clientStateCode);
+  const taxType = taxTypeFor(input.firmStateCode, input.clientStateCode, input.chargeGst ?? true);
 
   let cgstPaise = 0;
   let sgstPaise = 0;
@@ -66,7 +68,7 @@ export function computeInvoice(input: ComputeInput): ComputeResult {
     // Half the rate each, rounded independently (as shown on the invoice).
     cgstPaise = roundHalfUp((taxablePaise * gstRateBp) / 20000);
     sgstPaise = cgstPaise;
-  } else {
+  } else if (taxType === 'INTER') {
     igstPaise = roundHalfUp((taxablePaise * gstRateBp) / 10000);
   }
   const taxPaise = cgstPaise + sgstPaise + igstPaise;

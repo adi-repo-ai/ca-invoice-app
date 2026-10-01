@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useActor } from '../auth';
 import { ClientFields } from '../components/ClientFields';
 import { ClientPicker } from '../components/ClientPicker';
+import { useDialog } from '../components/Dialog';
 import { Alert, Button, Card, Field, Loading, Money, PageHeader, errorMessage } from '../components/ui';
 import { createClient, getClient, type ClientInput, type ClientRow } from '../data/clients';
 import { clientSnapshot, createDraft, getInvoice, issueInvoice, updateDraft, type DraftInput } from '../data/invoices';
@@ -47,6 +48,7 @@ export default function InvoiceEdit() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const actor = useActor();
+  const dialog = useDialog();
   const { settings, saved } = useSettings();
   const services = settings.sacCodes;
 
@@ -70,6 +72,8 @@ export default function InvoiceEdit() {
   const [items, setItems] = useState<ItemRow[]>([emptyLine()]);
   const [reimbs, setReimbs] = useState<ReimbRow[]>([]);
   const [terms, setTerms] = useState(settings.defaultTerms);
+  const [notes, setNotes] = useState('');
+  const [includeSignature, setIncludeSignature] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<'' | 'save' | 'issue'>('');
   // Remember records created by this form so a retry doesn't duplicate them.
@@ -104,6 +108,8 @@ export default function InvoiceEdit() {
           );
           setReimbs(inv.reimbursements.map((r) => ({ description: r.description, amount: paiseToInput(r.amountPaise) })));
           setTerms(inv.terms);
+          setNotes(inv.notes ?? '');
+          setIncludeSignature(inv.includeSignature ?? true);
         } else if (params.get('client')) {
           setClient(await getClient(db, params.get('client')!));
         }
@@ -148,6 +154,7 @@ export default function InvoiceEdit() {
       gstRateBp: settings.gstRateBp,
       firmStateCode: settings.stateCode,
       clientStateCode: snapshot?.stateCode || settings.stateCode,
+      chargeGst: settings.chargeGst,
     });
     return { problems, preview, its, rs };
   }, [items, reimbs, settings, snapshot]);
@@ -159,9 +166,9 @@ export default function InvoiceEdit() {
         setError('Choose a saved client, or switch to "New / one-off client" and type the details.');
         return null;
       }
-      return { clientId: client.id, client: clientSnapshot(client), items: parsed.its, reimbursements: parsed.rs, terms };
+      return { clientId: client.id, client: clientSnapshot(client), items: parsed.its, reimbursements: parsed.rs, terms, notes, includeSignature };
     }
-    const errs = validateClient(snapshot as ClientInput);
+    const errs = validateClient(snapshot as ClientInput, settings.chargeGst);
     setClientErrors(errs);
     if (Object.keys(errs).length) {
       setError('Please check the client details.');
@@ -171,14 +178,14 @@ export default function InvoiceEdit() {
     if (saveNewClient) {
       clientId = createdClientId.current ?? (createdClientId.current = await createClient(db, actor.uid, snapshot as ClientInput));
     }
-    return { clientId, client: snapshot!, items: parsed.its, reimbursements: parsed.rs, terms };
+    return { clientId, client: snapshot!, items: parsed.its, reimbursements: parsed.rs, terms, notes, includeSignature };
   }
 
   async function save(issue: boolean) {
     if (parsed.problems.length) return setError(parsed.problems.join(' '));
     if (issue) {
       if (!saved) return setError('Please fill in and save Settings (firm details) once before creating invoices.');
-      if (!window.confirm('Create this invoice? It gets the next invoice number and can no longer be edited.')) return;
+      if (!(await dialog.confirm({ title: 'Create this invoice?', message: 'It gets the next invoice number and can no longer be edited.', confirmText: 'Create invoice' }))) return;
     }
     setBusy(issue ? 'issue' : 'save');
     setError('');
@@ -250,7 +257,7 @@ export default function InvoiceEdit() {
           <ClientPicker value={client} onChange={setClient} />
         ) : (
           <div className="space-y-3">
-            <ClientFields value={newClient} onChange={setNewClient} errors={clientErrors} />
+            <ClientFields value={newClient} onChange={setNewClient} errors={clientErrors} stateRequired={settings.chargeGst} />
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" className="h-4 w-4" checked={saveNewClient} onChange={(e) => setSaveNewClient(e.target.checked)} />
               Save this client to my client list for next time
@@ -335,33 +342,51 @@ export default function InvoiceEdit() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2 md:items-start">
-        <Card>
-          <details>
-            <summary className="cursor-pointer text-sm font-semibold text-slate-800">Terms printed on the invoice (optional to change)</summary>
-            <textarea rows={5} className="mt-3 w-full" value={terms} onChange={(e) => setTerms(e.target.value)} />
-          </details>
-        </Card>
+        <div className="space-y-4">
+          <Card title="Notes (printed on the invoice)">
+            <textarea
+              rows={3}
+              className="w-full"
+              placeholder="e.g. Thank you for your business."
+              maxLength={4000}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+            <label className="mt-3 flex items-center gap-2 text-sm">
+              <input type="checkbox" className="h-4 w-4" checked={includeSignature} onChange={(e) => setIncludeSignature(e.target.checked)} />
+              Add signature to the invoice
+              {!settings.signatureDataUrl && <span className="text-xs text-slate-500">(upload one in Settings)</span>}
+            </label>
+          </Card>
+          <Card>
+            <details>
+              <summary className="cursor-pointer text-sm font-semibold text-slate-800">Terms &amp; conditions (optional to change)</summary>
+              <textarea rows={5} className="mt-3 w-full" value={terms} onChange={(e) => setTerms(e.target.value)} />
+            </details>
+          </Card>
+        </div>
         <Card title="3. Total">
           <dl className="space-y-1 text-sm">
-            <Row label="Taxable value" paise={t.taxablePaise} />
-            {intra ? (
-              <>
-                <Row label={`CGST @ ${settings.gstRateBp / 200}%`} paise={t.cgstPaise} />
-                <Row label={`SGST @ ${settings.gstRateBp / 200}%`} paise={t.sgstPaise} />
-              </>
-            ) : (
-              <Row label={`IGST @ ${settings.gstRateBp / 100}%`} paise={t.igstPaise} />
-            )}
-            <Row label="Reimbursements (no GST)" paise={t.reimbursementsPaise} />
-            <Row label="Round off" paise={t.roundOffPaise} />
+            <Row label="Total Amount" paise={settings.chargeGst ? t.taxablePaise : t.taxablePaise + t.reimbursementsPaise} />
+            {settings.chargeGst &&
+              (intra ? (
+                <>
+                  <Row label={`CGST @ ${settings.gstRateBp / 200}%`} paise={t.cgstPaise} />
+                  <Row label={`SGST @ ${settings.gstRateBp / 200}%`} paise={t.sgstPaise} />
+                </>
+              ) : (
+                <Row label={`IGST @ ${settings.gstRateBp / 100}%`} paise={t.igstPaise} />
+              ))}
+            {settings.chargeGst && t.reimbursementsPaise !== 0 && <Row label="Reimbursements" paise={t.reimbursementsPaise} />}
+            {t.roundOffPaise !== 0 && <Row label="Round off" paise={t.roundOffPaise} />}
             <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold">
-              <dt>Grand total</dt>
+              <dt>Total Invoice Value</dt>
               <dd>
                 <Money paise={t.grandTotalPaise} />
               </dd>
             </div>
             <p className="pt-1 text-xs text-slate-500">{parsed.preview.amountInWords}</p>
-            {snapshot?.stateName && (
+            {settings.chargeGst && snapshot?.stateName && (
               <p className="pt-1 text-xs text-slate-500">
                 {intra ? 'Same state: CGST + SGST' : 'Other state: IGST'} · Place of supply {snapshot.stateName}
               </p>

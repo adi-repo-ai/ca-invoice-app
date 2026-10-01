@@ -41,6 +41,8 @@ export interface DraftInput {
   items: LineInput[];
   reimbursements: Reimbursement[];
   terms: string;
+  notes?: string;
+  includeSignature?: boolean;
 }
 
 export function clientSnapshot(c: Client): ClientSnapshot {
@@ -60,6 +62,7 @@ export function clientSnapshot(c: Client): ClientSnapshot {
 export function firmSnapshot(s: FirmSettings): FirmSnapshot {
   return {
     name: s.name,
+    signatoryName: s.signatoryName,
     tagline: s.tagline,
     proprietor: s.proprietor,
     address: s.address,
@@ -82,17 +85,20 @@ function body(input: DraftInput, settings: FirmSettings, invoiceDate: string) {
     gstRateBp: settings.gstRateBp,
     firmStateCode: settings.stateCode,
     clientStateCode: input.client.stateCode,
+    chargeGst: settings.chargeGst,
   });
   return {
     clientId: input.clientId,
     client: input.client,
     items: r.items,
     reimbursements: r.reimbursements,
-    gstRateBp: settings.gstRateBp,
+    gstRateBp: settings.chargeGst ? settings.gstRateBp : 0,
     taxType: r.taxType,
     totals: r.totals,
     amountInWords: r.amountInWords,
     terms: input.terms,
+    notes: input.notes ?? '',
+    includeSignature: input.includeSignature ?? true,
     invoiceDate,
     dueDate: addDays(invoiceDate, settings.paymentDueDays),
   };
@@ -211,6 +217,8 @@ async function issueOnce(
           items: inv.items,
           reimbursements: inv.reimbursements,
           terms: inv.terms,
+          notes: inv.notes ?? '',
+          includeSignature: inv.includeSignature ?? true,
         },
         settings,
         issueDate,

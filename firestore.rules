@@ -42,6 +42,7 @@ service cloud.firestore {
     function validSettings(d) {
       return d.keys().hasOnly(['name', 'tagline', 'proprietor', 'address', 'stateName', 'stateCode', 'phone', 'email',
           'website', 'gstin', 'pan', 'bank', 'defaultTerms', 'brandColor', 'logoDataUrl',
+          'signatureDataUrl', 'signatoryName', 'chargeGst',
           'gstRateBp', 'sacCodes', 'invoicePrefix', 'paymentDueDays', 'updatedAt', 'updatedBy'])
         && nonEmpty(d.name, 200)
         && (!('tagline' in d) || str(d.tagline, 100))
@@ -56,6 +57,10 @@ service cloud.firestore {
         // Logo is a base64 data URL kept well under the 1 MiB document limit.
         && (d.logoDataUrl == null || (d.logoDataUrl is string && d.logoDataUrl.size() <= 400000
             && d.logoDataUrl.matches('^data:image/(png|jpeg);base64,.*')))
+        && (!('signatureDataUrl' in d) || d.signatureDataUrl == null || (d.signatureDataUrl is string
+            && d.signatureDataUrl.size() <= 300000 && d.signatureDataUrl.matches('^data:image/(png|jpeg);base64,.*')))
+        && (!('signatoryName' in d) || str(d.signatoryName, 200))
+        && (!('chargeGst' in d) || d.chargeGst is bool)
         && d.gstRateBp is int && d.gstRateBp >= 0 && d.gstRateBp <= 2800
         && d.sacCodes is list && d.sacCodes.size() <= 100
         && d.invoicePrefix is string && d.invoicePrefix.matches('^[A-Z]{1,3}$')
@@ -71,7 +76,44 @@ service cloud.firestore {
     // ---------- user profiles (written only by the Admin SDK) ----------
     match /users/{userId} {
       allow read: if isAdmin() || (signedIn() && uid() == userId);
-      allow write: if false;
+      // A signed-in user may only refresh their own "last seen" time.
+      allow update: if isStaff() && uid() == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeenAt'])
+        && request.resource.data.lastSeenAt == request.time;
+      allow create, delete: if false;
+    }
+
+    // ---------- invitations (Google sign-in allow-list, keyed by lower-case email) ----------
+    match /invites/{email} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin()
+        && email == email.lower() && email.matches('^[^@\\s]+@[^@\\s]+$')
+        && request.resource.data.keys().hasOnly(['email', 'role', 'invitedBy', 'invitedAt'])
+        && request.resource.data.email == email
+        && request.resource.data.role in ['ADMIN', 'STAFF']
+        && request.resource.data.invitedBy == uid()
+        && request.resource.data.invitedAt == request.time;
+      allow delete: if isAdmin();
+    }
+
+    // ---------- personal home-page items (tasks, events, notes, links) ----------
+    // Private to the person who created them.
+    function ownItem(maxText) {
+      let d = request.resource.data;
+      return isStaff() && d.ownerUid == uid() && d.updatedAt == request.time
+        && d.keys().hasOnly(['ownerUid', 'title', 'text', 'url', 'date', 'time', 'done', 'createdAt', 'updatedAt'])
+        && (!('title' in d) || str(d.title, 200))
+        && (!('text' in d) || str(d.text, maxText))
+        && (!('url' in d) || (d.url is string && d.url.size() <= 1000 && d.url.matches('^https?://.*')))
+        && (!('date' in d) || d.date == '' || isDate(d.date))
+        && (!('time' in d) || (d.time is string && d.time.matches('^([0-9]{2}:[0-9]{2})?$')))
+        && (!('done' in d) || d.done is bool);
+    }
+    match /{coll}/{itemId} {
+      allow read, delete: if coll in ['tasks', 'events', 'notes', 'links'] && isStaff() && resource.data.ownerUid == uid();
+      allow create: if coll in ['tasks', 'events', 'notes', 'links'] && ownItem(5000) && request.resource.data.createdAt == request.time;
+      allow update: if coll in ['tasks', 'events', 'notes', 'links'] && ownItem(5000)
+        && resource.data.ownerUid == uid() && request.resource.data.createdAt == resource.data.createdAt;
     }
 
     // ---------- clients ----------
@@ -108,7 +150,7 @@ service cloud.firestore {
     // ---------- invoices ----------
     function draftKeys() {
       return ['status', 'clientId', 'client', 'items', 'reimbursements', 'gstRateBp', 'taxType',
-        'totals', 'amountInWords', 'terms', 'invoiceDate', 'dueDate',
+        'totals', 'amountInWords', 'terms', 'notes', 'includeSignature', 'invoiceDate', 'dueDate',
         'createdAt', 'createdBy', 'updatedAt', 'updatedBy'];
     }
     function issuedOnlyKeys() { return ['number', 'seq', 'fy', 'firm', 'issuedAt', 'issuedBy']; }
@@ -119,7 +161,9 @@ service cloud.firestore {
         && d.items is list && d.items.size() <= 50
         && d.reimbursements is list && d.reimbursements.size() <= 30
         && d.gstRateBp is int && d.gstRateBp >= 0 && d.gstRateBp <= 2800
-        && d.taxType in ['INTRA', 'INTER']
+        && d.taxType in ['INTRA', 'INTER', 'NONE']
+        && (!('notes' in d) || str(d.notes, 4000))
+        && (!('includeSignature' in d) || d.includeSignature is bool)
         && d.totals is map
         && paise(d.totals.taxablePaise) && paise(d.totals.cgstPaise) && paise(d.totals.sgstPaise)
         && paise(d.totals.igstPaise) && paise(d.totals.taxPaise)

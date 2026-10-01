@@ -20,12 +20,12 @@ const EMPTY: ClientInput = {
   pan: '',
 };
 
-export function validateClient(c: ClientInput): Partial<Record<keyof ClientInput, string>> {
+export function validateClient(c: ClientInput, requireState = true): Partial<Record<keyof ClientInput, string>> {
   const e: Partial<Record<keyof ClientInput, string>> = {};
   if (!c.name.trim()) e.name = 'Required';
-  if (!c.stateCode) e.stateCode = 'Required (decides CGST+SGST vs IGST)';
+  if (requireState && !c.stateCode) e.stateCode = 'Required (decides CGST+SGST vs IGST)';
   if (c.email && !isValidEmail(c.email)) e.email = 'Invalid email';
-  if (c.whatsapp && !normaliseWhatsapp(c.whatsapp)) e.whatsapp = 'Enter a 10-digit mobile or a number with country code';
+  if (c.whatsapp && !normaliseWhatsapp(c.whatsapp)) e.whatsapp = 'Enter a 10-digit mobile number (or one with country code)';
   if (c.gstin) {
     if (!isValidGstin(c.gstin)) e.gstin = 'GSTIN must be 15 characters, e.g. 36ABCDE1234F1Z5';
     else if (c.stateCode && c.gstin.slice(0, 2) !== c.stateCode) e.gstin = `GSTIN starts with ${c.gstin.slice(0, 2)}, which doesn't match the selected state (${c.stateCode})`;
@@ -68,7 +68,7 @@ export default function ClientEdit() {
       email: c!.email.trim(),
       whatsapp: c!.whatsapp ? (normaliseWhatsapp(c!.whatsapp) ?? c!.whatsapp) : '',
     };
-    const errs = validateClient(clean);
+    const errs = validateClient(clean, settings.chargeGst);
     setErrors(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
@@ -103,13 +103,13 @@ export default function ClientEdit() {
           <Field label="Email" error={errors.email}>
             <input type="email" value={c.email} onChange={(e) => set('email', e.target.value)} />
           </Field>
-          <Field label="WhatsApp number" error={errors.whatsapp} hint="10-digit mobile; +91 is added automatically.">
+          <Field label="Mobile number" error={errors.whatsapp} hint="10-digit mobile; +91 is added automatically. Used for WhatsApp.">
             <input type="tel" value={c.whatsapp} onChange={(e) => set('whatsapp', e.target.value)} />
           </Field>
           <Field label="Billing address" className="sm:col-span-2">
             <textarea rows={3} value={c.address} onChange={(e) => set('address', e.target.value)} />
           </Field>
-          <Field label="State *" error={errors.stateCode}>
+          <Field label={settings.chargeGst ? 'State *' : 'State'} error={errors.stateCode}>
             <select
               value={c.stateCode}
               onChange={(e) => {

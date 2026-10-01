@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { SettingsTabs } from '../components/SettingsTabs';
 import { useAuth } from '../auth';
-import { Alert, Button, Card, Field, PageHeader, errorMessage } from '../components/ui';
+import { Alert, Button, Card, Field, PageHeader, Switch, errorMessage } from '../components/ui';
 import { saveSettings } from '../data/settings';
 import { db } from '../firebase';
 import { formatInvoiceNumber, fyForDate, todayIST } from '../lib/fy';
@@ -23,7 +23,7 @@ function validate(s: FirmSettings, gstRate: string): Errors {
   if (s.email && !isValidEmail(s.email)) e.email = 'Invalid email';
   if (s.bank.ifsc && !IFSC_RE.test(s.bank.ifsc)) e.ifsc = 'Invalid IFSC';
   if (!HEX_COLOR_RE.test(s.brandColor)) e.brandColor = 'Use #RRGGBB';
-  if (!/^\d{1,2}(\.\d{1,2})?$/.test(gstRate) || Number(gstRate) > 28) e.gstRate = 'Enter a rate between 0 and 28';
+  if (s.chargeGst && (!/^\d{1,2}(\.\d{1,2})?$/.test(gstRate) || Number(gstRate) > 28)) e.gstRate = 'Enter a rate between 0 and 28';
   if (!/^[A-Z]{1,3}$/.test(s.invoicePrefix)) e.invoicePrefix = '1–3 capital letters';
   if (!Number.isInteger(s.paymentDueDays) || s.paymentDueDays < 0 || s.paymentDueDays > 365) e.paymentDueDays = '0–365';
   s.sacCodes.forEach((c, i) => {
@@ -51,6 +51,15 @@ export default function Settings() {
 
   const set = <K extends keyof FirmSettings>(k: K, v: FirmSettings[K]) => setS((p) => ({ ...p, [k]: v }));
   const setBank = (k: keyof FirmSettings['bank'], v: string) => setS((p) => ({ ...p, bank: { ...p.bank, [k]: v } }));
+
+  async function onSignature(file: File | undefined) {
+    if (!file) return;
+    try {
+      set('signatureDataUrl', await resizeLogo(file));
+    } catch (e) {
+      setMsg({ kind: 'error', text: errorMessage(e) });
+    }
+  }
 
   async function onLogo(file: File | undefined) {
     if (!file) return;
@@ -157,10 +166,23 @@ export default function Settings() {
       </Card>
 
       <Card title="Invoicing">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="max-w-xl">
+            <div className="font-medium">Charge GST on invoices</div>
+            <p className="text-sm text-slate-600">
+              {s.chargeGst
+                ? 'ON: invoices are titled "Tax Invoice" and show CGST + SGST (same state) or IGST (other state).'
+                : 'OFF: invoices are titled "Invoice" with no GST. Turn this on only if the firm is GST-registered and charges GST.'}
+            </p>
+          </div>
+          <Switch checked={s.chargeGst} onChange={(v) => set('chargeGst', v)} label="Charge GST" />
+        </div>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="GST rate (%)" error={errors.gstRate} hint="Split equally into CGST + SGST for intra-state.">
-            <input value={gstRate} inputMode="decimal" onChange={(e) => setGstRate(e.target.value.trim())} />
-          </Field>
+          {s.chargeGst && (
+            <Field label="GST rate (%)" error={errors.gstRate} hint="Split equally into CGST + SGST for intra-state.">
+              <input value={gstRate} inputMode="decimal" onChange={(e) => setGstRate(e.target.value.trim())} />
+            </Field>
+          )}
           <Field
             label="Invoice number prefix"
             error={errors.invoicePrefix}
@@ -233,6 +255,29 @@ export default function Settings() {
               Add service
             </Button>
           </div>
+        </div>
+      </Card>
+
+      <Card title="Signature (printed on invoices)">
+        <div className="grid gap-6 sm:grid-cols-2">
+          <Field label="Signatory name" hint='Printed under the signature, above "Authorised Signatory".'>
+            <input value={s.signatoryName} onChange={(e) => set('signatoryName', e.target.value)} />
+          </Field>
+          <Field label="Signature image" hint="A photo or scan of the signature on white paper (PNG/JPG).">
+            <div className="flex flex-wrap items-center gap-3">
+              {s.signatureDataUrl ? (
+                <img src={s.signatureDataUrl} alt="Signature preview" className="h-14 w-auto rounded border border-slate-200 bg-white p-1" />
+              ) : (
+                <span className="text-sm text-slate-500">No signature</span>
+              )}
+              <input type="file" accept="image/png,image/jpeg" className="max-w-full text-sm" onChange={(e) => onSignature(e.target.files?.[0])} />
+              {s.signatureDataUrl && (
+                <Button type="button" variant="ghost" onClick={() => set('signatureDataUrl', null)}>
+                  Remove
+                </Button>
+              )}
+            </div>
+          </Field>
         </div>
       </Card>
 

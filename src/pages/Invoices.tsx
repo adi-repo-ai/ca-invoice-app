@@ -1,7 +1,6 @@
 import type { DocumentSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ClientPicker } from '../components/ClientPicker';
-import { Summary } from '../components/Summary';
 import { InvoiceTable } from '../components/InvoiceTable';
 import { Alert, Button, Card, Field, LinkButton, Loading, PageHeader, errorMessage } from '../components/ui';
 import type { ClientRow } from '../data/clients';
@@ -89,7 +88,6 @@ export default function Invoices() {
   return (
     <div className="space-y-4">
       <PageHeader title="Invoices" actions={<LinkButton to="/invoices/new">+ New invoice</LinkButton>} />
-      <Summary />
       {error && <Alert>{error}</Alert>}
       <Card>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

@@ -8,10 +8,12 @@ export function ClientFields({
   value: c,
   onChange,
   errors,
+  stateRequired = true,
 }: {
   value: ClientInput;
   onChange: (c: ClientInput) => void;
   errors: ReturnType<typeof validateClient>;
+  stateRequired?: boolean;
 }) {
   const set = (k: keyof ClientInput, v: string) => onChange({ ...c, [k]: v });
   return (
@@ -19,7 +21,7 @@ export function ClientFields({
       <Field label="Client name *" error={errors.name}>
         <input value={c.name} onChange={(e) => set('name', e.target.value)} />
       </Field>
-      <Field label="State *" error={errors.stateCode} hint="Decides CGST + SGST or IGST.">
+      <Field label={stateRequired ? 'State *' : 'State (optional)'} error={errors.stateCode} hint={stateRequired ? 'Decides CGST + SGST or IGST.' : undefined}>
         <select
           value={c.stateCode}
           onChange={(e) => {
@@ -38,7 +40,7 @@ export function ClientFields({
       <Field label="Email" error={errors.email}>
         <input type="email" value={c.email} onChange={(e) => set('email', e.target.value)} />
       </Field>
-      <Field label="WhatsApp number" error={errors.whatsapp}>
+      <Field label="Mobile number" error={errors.whatsapp} hint="Used for WhatsApp.">
         <input type="tel" value={c.whatsapp} onChange={(e) => set('whatsapp', e.target.value)} />
       </Field>
       <Field label="Address" className="sm:col-span-2">

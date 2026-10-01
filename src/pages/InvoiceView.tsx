@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useActor, useAuth } from '../auth';
 import { Alert, Button, Card, Field, LinkButton, Loading, Money, PageHeader, StatusBadge, errorMessage } from '../components/ui';
+import { useDialog } from '../components/Dialog';
 import { appendAudit, listInvoiceAudit, type AuditEntry } from '../data/audit';
 import { cancelInvoice, getInvoice, issueInvoice, recordPayment, type InvoiceRow } from '../data/invoices';
 import { db } from '../firebase';
@@ -34,6 +35,7 @@ export default function InvoiceView() {
   const { id } = useParams();
   const { role } = useAuth();
   const actor = useActor();
+  const dialog = useDialog();
   const { settings, saved } = useSettings();
   const [inv, setInv] = useState<InvoiceRow | null>(null);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
@@ -76,6 +78,7 @@ export default function InvoiceView() {
   if (!inv) return msg ? <Alert kind={msg.kind}>{msg.text}</Alert> : <Loading />;
   const t = inv.totals;
   const intra = inv.taxType === 'INTRA';
+  const gst = inv.taxType !== 'NONE';
   const issuedLike = inv.status !== 'DRAFT';
   const wa = normaliseWhatsapp(inv.client.whatsapp);
 
@@ -83,13 +86,17 @@ export default function InvoiceView() {
    * Drafts have no invoice number yet, so the PDF / share buttons first create
    * (issue) the invoice, after confirming, and then continue with it.
    */
-  function confirmIssueIfDraft(): boolean {
+  async function confirmIssueIfDraft(): Promise<boolean> {
     if (inv!.status !== 'DRAFT') return true;
     if (!saved) {
       setMsg({ kind: 'error', text: 'Please fill in and save Settings (firm details) once before creating invoices.' });
       return false;
     }
-    return window.confirm('This is a draft. Create the invoice now (it gets the next invoice number and can no longer be edited), then continue?');
+    return dialog.confirm({
+      title: 'Create the invoice first?',
+      message: 'This is a draft. It will get the next invoice number and can no longer be edited.',
+      confirmText: 'Create & continue',
+    });
   }
   async function readyInvoice(): Promise<InvoiceRow> {
     if (inv!.status !== 'DRAFT') return inv!;
@@ -100,8 +107,8 @@ export default function InvoiceView() {
     return fresh;
   }
 
-  const download = () => {
-    if (!confirmIssueIfDraft()) return;
+  const download = async () => {
+    if (!(await confirmIssueIfDraft())) return;
     act('pdf', async () => {
       const current = await readyInvoice();
       const { blob, fileName } = await makePdf(current, settings);
@@ -117,8 +124,8 @@ export default function InvoiceView() {
    * allowed) the PDF is downloaded and a ready-written email or WhatsApp chat
    * opens for the user to attach it. Works even without a saved email/number.
    */
-  const send = (channel: 'email' | 'whatsapp') => {
-    if (!confirmIssueIfDraft()) return;
+  const send = async (channel: 'email' | 'whatsapp') => {
+    if (!(await confirmIssueIfDraft())) return;
     act(channel, async () => {
       const current = await readyInvoice();
       const waNumber = normaliseWhatsapp(current.client.whatsapp);
@@ -182,9 +189,15 @@ export default function InvoiceView() {
               </LinkButton>
               <Button
                 busy={busy === 'issue'}
-                onClick={() => {
+                onClick={async () => {
                   if (!saved) return setMsg({ kind: 'error', text: 'Please fill in and save Settings before creating invoices.' });
-                  if (window.confirm('Create this invoice? It gets the next invoice number and can no longer be edited.'))
+                  if (
+                    await dialog.confirm({
+                      title: 'Create this invoice?',
+                      message: 'It gets the next invoice number and can no longer be edited.',
+                      confirmText: 'Create invoice',
+                    })
+                  )
                     act('issue', async () => `Invoice ${await issueInvoice(db, actor, inv.id, settings)} created. Send it to your client below.`);
                 }}
               >
@@ -268,12 +281,10 @@ export default function InvoiceView() {
             <div className="font-medium">{inv.client.name}</div>
             {inv.client.contactPerson && <div>Attn: {inv.client.contactPerson}</div>}
             <div className="whitespace-pre-line text-slate-600">{inv.client.address}</div>
-            <div>
-              {inv.client.stateName} ({inv.client.stateCode})
-            </div>
+            {inv.client.stateName && <div>Place of supply: {inv.client.stateName}</div>}
             {inv.client.gstin && <div>GSTIN: {inv.client.gstin}</div>}
             {inv.client.email && <div>{inv.client.email}</div>}
-            {inv.client.whatsapp && <div>WhatsApp: +{inv.client.whatsapp}</div>}
+            {inv.client.whatsapp && <div>Mobile: +{inv.client.whatsapp}</div>}
           </div>
         </Card>
         <Card title="Details">
@@ -282,8 +293,12 @@ export default function InvoiceView() {
             <dd>{inv.invoiceDate}</dd>
             <dt className="text-slate-500">Due date</dt>
             <dd>{inv.dueDate}</dd>
-            <dt className="text-slate-500">Tax</dt>
-            <dd>{intra ? 'CGST + SGST (intra-state)' : 'IGST (inter-state)'}</dd>
+            {gst && (
+              <>
+                <dt className="text-slate-500">GST</dt>
+                <dd>{intra ? 'CGST + SGST (same state)' : 'IGST (other state)'}</dd>
+              </>
+            )}
             {inv.payment && (
               <>
                 <dt className="text-slate-500">Paid on</dt>
@@ -358,25 +373,32 @@ export default function InvoiceView() {
           </table>
         </div>
         <dl className="ml-auto mt-4 max-w-xs space-y-1 text-sm">
-          <TotalRow label="Taxable value" paise={t.taxablePaise} />
-          {intra ? (
-            <>
-              <TotalRow label={`CGST @ ${inv.gstRateBp / 200}%`} paise={t.cgstPaise} />
-              <TotalRow label={`SGST @ ${inv.gstRateBp / 200}%`} paise={t.sgstPaise} />
-            </>
-          ) : (
-            <TotalRow label={`IGST @ ${inv.gstRateBp / 100}%`} paise={t.igstPaise} />
-          )}
-          {t.reimbursementsPaise !== 0 && <TotalRow label="Reimbursements" paise={t.reimbursementsPaise} />}
+          <TotalRow label="Total Amount" paise={gst ? t.taxablePaise : t.taxablePaise + t.reimbursementsPaise} />
+          {gst &&
+            (intra ? (
+              <>
+                <TotalRow label={`CGST @ ${inv.gstRateBp / 200}%`} paise={t.cgstPaise} />
+                <TotalRow label={`SGST @ ${inv.gstRateBp / 200}%`} paise={t.sgstPaise} />
+              </>
+            ) : (
+              <TotalRow label={`IGST @ ${inv.gstRateBp / 100}%`} paise={t.igstPaise} />
+            ))}
+          {gst && t.reimbursementsPaise !== 0 && <TotalRow label="Reimbursements" paise={t.reimbursementsPaise} />}
           {t.roundOffPaise !== 0 && <TotalRow label="Round off" paise={t.roundOffPaise} />}
           <div className="flex justify-between border-t pt-2 text-base font-semibold">
-            <dt>Grand total</dt>
+            <dt>Total Invoice Value</dt>
             <dd>
               <Money paise={t.grandTotalPaise} />
             </dd>
           </div>
           <p className="text-xs text-slate-500">{inv.amountInWords}</p>
         </dl>
+        {inv.notes && (
+          <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm">
+            <div className="mb-1 text-xs font-semibold uppercase text-slate-500">Notes</div>
+            <p className="whitespace-pre-line">{inv.notes}</p>
+          </div>
+        )}
       </Card>
 
       {issuedLike && !inv.firm && <Alert kind="info">Firm details snapshot missing; the PDF uses current settings.</Alert>}
@@ -430,8 +452,9 @@ function PaymentPanel({
   const [tds, setTds] = useState('0');
   const [reference, setReference] = useState('');
   const [error, setError] = useState('');
+  const dialog = useDialog();
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     const amountPaise = parseRupeesToPaise(amount);
     const tdsPaise = parseRupeesToPaise(tds || '0');
@@ -440,8 +463,15 @@ function PaymentPanel({
     if (amountPaise + tdsPaise === 0) return setError('Amount received and TDS cannot both be zero.');
     if (date > todayIST()) return setError('Payment date cannot be in the future.');
     const settled = amountPaise + tdsPaise;
-    if (settled !== inv.totals.grandTotalPaise &&
-      !window.confirm(`Amount + TDS (₹${formatPaise(settled)}) differs from the invoice total (₹${formatPaise(inv.totals.grandTotalPaise)}). Mark as PAID anyway?`)) return;
+    if (
+      settled !== inv.totals.grandTotalPaise &&
+      !(await dialog.confirm({
+        title: 'Amount differs from the invoice total',
+        message: `Amount + TDS is ₹${formatPaise(settled)} but the invoice total is ₹${formatPaise(inv.totals.grandTotalPaise)}. Mark as paid anyway?`,
+        confirmText: 'Mark as paid',
+      }))
+    )
+      return;
     onSubmit({ date, mode, amountPaise, tdsPaise, reference: reference.trim() });
   }
 
@@ -482,12 +512,17 @@ function PaymentPanel({
 
 function CancelPanel({ busy, onSubmit }: { busy: boolean; onSubmit: (reason: string) => void }) {
   const [reason, setReason] = useState('');
+  const dialog = useDialog();
   return (
     <Card title="Cancel invoice">
       <form
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
-          if (reason.trim().length >= 3 && window.confirm('Cancel this invoice? This cannot be undone.')) onSubmit(reason);
+          if (
+            reason.trim().length >= 3 &&
+            (await dialog.confirm({ title: 'Cancel this invoice?', message: 'This cannot be undone. The invoice number stays reserved.', confirmText: 'Cancel invoice', cancelText: 'Keep invoice', danger: true }))
+          )
+            onSubmit(reason);
         }}
         className="space-y-3"
       >

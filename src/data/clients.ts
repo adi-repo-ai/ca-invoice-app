@@ -4,6 +4,7 @@ import {
   deleteDoc,
   doc,
   endAt,
+  getCountFromServer,
   getDoc,
   getDocs,
   limit,
@@ -74,4 +75,26 @@ export async function updateClient(db: Firestore, uid: string, id: string, c: Cl
 /** Remove a saved client. Their invoices keep a full copy of the details. */
 export async function deleteClient(db: Firestore, id: string): Promise<void> {
   await deleteDoc(doc(db, 'clients', id));
+}
+
+/** Number of saved clients (a cheap server-side count). */
+export async function countClients(db: Firestore): Promise<number> {
+  return (await getCountFromServer(collection(db, 'clients'))).data().count;
+}
+
+/** Newest clients first (for the "Newest" sort). */
+export async function listClientsNewest(
+  db: Firestore,
+  after: DocumentSnapshot | null,
+): Promise<{ rows: ClientRow[]; last: DocumentSnapshot | null; hasMore: boolean }> {
+  const parts = [orderBy('createdAt', 'desc')] as Parameters<typeof query>[1][];
+  if (after) parts.push(startAfter(after));
+  parts.push(limit(CLIENT_PAGE_SIZE + 1));
+  const snap = await getDocs(query(collection(db, 'clients'), ...parts));
+  const docs = snap.docs.slice(0, CLIENT_PAGE_SIZE);
+  return {
+    rows: docs.map((d) => ({ id: d.id, ...(d.data() as Client) })),
+    last: docs[docs.length - 1] ?? null,
+    hasMore: snap.docs.length > CLIENT_PAGE_SIZE,
+  };
 }

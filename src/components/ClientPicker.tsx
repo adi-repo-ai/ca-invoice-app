@@ -53,7 +53,7 @@ export function ClientPicker({
 
   if (value && !editing) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-300 bg-white px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-300 bg-surface px-3 py-2">
         <div>
           <div className="font-medium">{value.name}</div>
           <div className="text-xs text-slate-500">
@@ -88,7 +88,7 @@ export function ClientPicker({
         }}
       />
       {open && (
-        <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
+        <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-md border border-slate-200 bg-surface shadow-lg">
           {rows.length === 0 && <li className="px-3 py-2 text-sm text-slate-500">No matching clients</li>}
           {rows.map((c) => (
             <li key={c.id}>

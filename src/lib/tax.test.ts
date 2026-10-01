@@ -76,6 +76,19 @@ describe('tax engine', () => {
     expect(() => lineAmount(1, 10.5)).toThrow();
   });
 
+  it('charges no GST when GST is switched off', () => {
+    const r = computeInvoice({
+      ...base,
+      chargeGst: false,
+      clientStateCode: '36',
+      items: [{ description: 'Audit fee', sac: '998221', qty: 1, ratePaise: 10_000_00 }],
+      reimbursements: [{ description: 'ROC fee', amountPaise: 500_00 }],
+    });
+    expect(r.taxType).toBe('NONE');
+    expect(r.totals.taxPaise).toBe(0);
+    expect(r.totals.grandTotalPaise).toBe(10_500_00);
+  });
+
   it('chooses tax type by state code', () => {
     expect(taxTypeFor('36', '36')).toBe('INTRA');
     expect(taxTypeFor('36', '37')).toBe('INTER');

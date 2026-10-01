@@ -1,16 +1,110 @@
 @import "tailwindcss";
 
+/* Dark mode is switched by a "dark" class on <html> (see src/theme.ts). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --color-surface: #ffffff; /* cards, inputs, menus */
+  --animate-fade-in: fade-in 0.25s ease-out both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 :root {
   --brand: #0c629b;
+  color-scheme: light;
+}
+
+/*
+ * Night theme: re-map the neutral and status colour scales so every screen
+ * flips without per-component dark: classes. Contrast pairs checked for
+ * WCAG AA (body text on surface ≥ 7:1, muted text ≥ 4.5:1).
+ */
+.dark {
+  color-scheme: dark;
+  --color-surface: #131c2e;
+  --color-slate-50: #0b1220;
+  --color-slate-100: #1b2538;
+  --color-slate-200: #2a3650;
+  --color-slate-300: #3b4a66;
+  --color-slate-400: #6b7a96;
+  --color-slate-500: #9aa8c0;
+  --color-slate-600: #c3cddd;
+  --color-slate-700: #dbe2ec;
+  --color-slate-800: #edf1f7;
+  --color-slate-900: #f8fafc;
+  --color-red-50: #3a1214;
+  --color-red-100: #4a1518;
+  --color-red-200: #7f1d1d;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+  --color-green-50: #0a2a17;
+  --color-green-100: #11391f;
+  --color-green-200: #166534;
+  --color-green-700: #86efac;
+  --color-green-800: #bbf7d0;
+  --color-amber-50: #2e2206;
+  --color-amber-200: #78350f;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-blue-50: #0b1d3a;
+  --color-blue-100: #172554;
+  --color-blue-200: #1e3a8a;
+  --color-blue-800: #bfdbfe;
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     @apply bg-slate-50 text-slate-900 antialiased;
+    font-feature-settings: "cv11", "ss01";
   }
   input,
   select,
   textarea {
-    @apply rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/20 disabled:bg-slate-100;
+    @apply rounded-lg border border-slate-300 bg-surface px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[var(--brand)] focus:ring-4 focus:ring-[var(--brand)]/15 disabled:bg-slate-100;
+  }
+  /* Let form controls shrink inside grids/flex rows (no sideways scrolling on phones). */
+  input,
+  select,
+  textarea {
+    min-width: 0;
+    max-width: 100%;
+  }
+  /* Grid / flex children may shrink below their content width. */
+  .grid > *,
+  .flex > * {
+    min-width: 0;
+  }
+  input[type="checkbox"] {
+    @apply p-0 accent-[var(--brand)];
+  }
+  input[type="file"] {
+    @apply border-0 bg-transparent p-0 shadow-none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

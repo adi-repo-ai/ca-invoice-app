@@ -126,15 +126,18 @@ The emulator suite shows that:
 3. **Project settings → General → Your apps → Web (`</>`)** → register an app (no Hosting). Copy `apiKey`,
    `authDomain`, `projectId` and `appId`; they become the `VITE_FIREBASE_*` variables in 4.5.
 
-### 4.2 Authentication: enable Email/Password and disable sign-up
+### 4.2 Authentication: Google sign-in (+ email/password fallback)
 
-1. **Build → Authentication → Get started → Sign-in method → Email/Password → Enable** (leave
-   "Email link" off) → Save.
-2. **Authentication → Settings → User actions** → **untick "Enable create (sign-up)"** (and untick "Enable
-   deletion") → Save. This stops anyone creating an account with the public web config. Only ADMINs create
-   users, through the app.
-   * Defence in depth: even if an account were created some other way, it would have no `role` claim, and
-     the security rules deny all data access to such accounts.
+1. **Build → Authentication → Sign-in method → Add new provider → Google → Enable**. Choose a support
+   email → Save.
+2. Also enable **Email/Password** (leave "Email link" off). It is the hidden fallback ("Use email & password
+   instead") and powers **Forgot password?**.
+3. **Authentication → Settings → User actions:** keep **"Enable create (sign-up)" ticked**. Google sign-in
+   needs it to create the account the first time someone signs in.
+   * This is safe. Only emails an ADMIN has added in **Settings → Users** get a role. Anyone else who signs in
+     sees "No access yet", and the security rules deny all data to accounts without a role.
+4. **Authentication → Settings → Authorized domains:** make sure your site address (e.g.
+   `lingeshwarca-invoice.netlify.app`) is listed, otherwise the Google pop-up fails.
 
 ### 4.3 Create the Firestore database
 
@@ -242,12 +245,25 @@ the local `.env`.
 
 ## 5. Operations
 
-### 5.1 Users
+### 5.1 Users and sign-in
 
-* **Add / promote / disable / reset password:** ADMIN → **Settings → Users**. Disabling or changing a role signs that
-  user out of existing sessions. An ADMIN can't disable or demote themselves, so the firm can't get locked out.
-* Staff who forget their password: an ADMIN uses **Set password** and tells them the new one.
+* **Give access:** ADMIN → **Settings → Users → Give someone access** → their Google email + role. They then
+  open the portal, click **Sign in with Google**, and are let in automatically on first sign-in.
+* **Active now / last active** is shown for each user. **Disable** blocks sign-in immediately; **Make
+  ADMIN/STAFF** changes the role. An ADMIN can't disable or demote themselves.
+* **Forgot password** (email fallback only): "Use email & password instead" → type the email → **Forgot
+  password?** → Firebase emails a reset link.
+* **Privacy:** sessions sign out automatically after 30 minutes without activity. Home-page tasks, events,
+  notes and links are private to each user. All data is encrypted in transit (HTTPS) and at rest by Google.
 * Keep at least two ADMIN accounts.
+
+### 5.1a GST on or off
+
+**Settings → Firm details → Invoicing → Charge GST on invoices.**
+* **OFF** (default): invoices are titled "INVOICE", with no tax lines and no reverse-charge row.
+  "Total Amount" / "Total Invoice Value" are shown, and the client's state is optional.
+* **ON:** "TAX INVOICE" with CGST + SGST (client in the firm's state) or IGST (other states), reverse charge
+  and GSTIN details. Turn this on only if the firm is GST-registered.
 
 ### 5.2 Invoicing workflow
 

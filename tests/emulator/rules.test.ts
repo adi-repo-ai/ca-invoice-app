@@ -284,3 +284,42 @@ describe('audit log', () => {
     expect(actions.sort()).toEqual(['CREATE', 'ISSUE']);
   });
 });
+
+describe('GST switched off', () => {
+  it('issues a plain invoice with no tax', async () => {
+    const db = fs(asStaff(env));
+    const id = await createDraft(db, STAFF, { ...draftInput('ts'), notes: 'Thank you', includeSignature: true }, { ...SETTINGS, chargeGst: false });
+    await issueInvoice(db, STAFF, id, { ...SETTINGS, chargeGst: false });
+    const inv = (await getInvoice(db, id))!;
+    expect(inv.taxType).toBe('NONE');
+    expect(inv.totals.taxPaise).toBe(0);
+    expect(inv.notes).toBe('Thank you');
+  });
+});
+
+describe('invites, last-seen and personal items', () => {
+  it('only ADMIN manages invites', async () => {
+    const invite = (by: string) => ({ email: 'new@gmail.com', role: 'STAFF', invitedBy: by, invitedAt: serverTimestamp() });
+    await assertFails(setDoc(doc(fs(asStaff(env)), 'invites/new@gmail.com'), invite(STAFF.uid)));
+    await assertSucceeds(setDoc(doc(fs(asAdmin(env)), 'invites/new@gmail.com'), invite(ADMIN.uid)));
+    await assertFails(setDoc(doc(fs(asAdmin(env)), 'invites/New@Gmail.com'), { ...invite(ADMIN.uid), email: 'New@Gmail.com' }));
+    await assertFails(getDoc(doc(fs(asStaff(env)), 'invites/new@gmail.com')));
+  });
+
+  it('users can only update their own lastSeenAt', async () => {
+    const db = fs(asStaff(env));
+    await assertSucceeds(updateDoc(doc(db, 'users', STAFF.uid), { lastSeenAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(db, 'users', STAFF.uid), { role: 'ADMIN', lastSeenAt: serverTimestamp() }));
+  });
+
+  it('tasks / notes are private to their owner', async () => {
+    const mine = fs(asStaff(env));
+    const item = { ownerUid: STAFF.uid, title: 'File GSTR-3B', date: '2026-10-20', done: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    const ref = await assertSucceeds(addDoc(collection(mine, 'tasks'), item));
+    await assertSucceeds(getDoc(ref));
+    await assertFails(getDoc(doc(fs(asAdmin(env)), 'tasks', ref.id)));
+    await assertFails(addDoc(collection(mine, 'tasks'), { ...item, ownerUid: ADMIN.uid }));
+    await assertFails(addDoc(collection(mine, 'links'), { ownerUid: STAFF.uid, title: 'x', url: 'javascript:alert(1)', createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+    await assertFails(addDoc(collection(fs(asNoRole(env)), 'notes'), { ownerUid: NOROLE.uid, text: 'x', createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+  });
+});

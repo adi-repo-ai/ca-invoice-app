@@ -23,6 +23,9 @@ export const DEFAULT_SETTINGS: FirmSettings = {
     'Payment is due within 15 days of the invoice date.\nPlease quote the invoice number when making payment.',
   brandColor: DEFAULT_BRAND_COLOR,
   logoDataUrl: DEFAULT_LOGO_DATA_URL,
+  signatureDataUrl: null,
+  signatoryName: 'CA Lingeshwar',
+  chargeGst: false,
   gstRateBp: 1800,
   sacCodes: [
     { code: '998221', description: 'Financial auditing services' },

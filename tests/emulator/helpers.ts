@@ -40,6 +40,7 @@ export const fs = (ctx: RulesTestContext) => ctx.firestore() as unknown as Fires
 
 export const SETTINGS: FirmSettings = {
   ...DEFAULT_SETTINGS,
+  chargeGst: true,
   name: 'Test Firm',
   gstin: '36AABCD1234E1Z5',
 };

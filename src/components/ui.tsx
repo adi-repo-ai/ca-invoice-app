@@ -1,14 +1,16 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { formatPaise } from '../lib/money';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-[var(--brand)] text-white hover:opacity-90',
-  secondary: 'bg-white text-slate-800 border border-slate-300 hover:bg-slate-50',
-  danger: 'bg-red-600 text-white hover:bg-red-700',
+  primary: 'bg-[var(--brand)] text-white shadow-sm hover:brightness-110 hover:shadow-md',
+  secondary: 'bg-surface text-slate-800 border border-slate-300 shadow-sm hover:bg-slate-50 hover:border-slate-400',
+  danger: 'bg-red-600 text-white shadow-sm hover:bg-red-700 hover:shadow-md',
   ghost: 'text-slate-700 hover:bg-slate-100',
 };
+const BASE =
+  'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50';
 
 export function Button({
   variant = 'primary',
@@ -16,22 +18,18 @@ export function Button({
   busy,
   children,
   ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; busy?: boolean }) {
+}: ComponentProps<'button'> & { variant?: Variant; busy?: boolean }) {
   return (
-    <button
-      {...rest}
-      disabled={rest.disabled || busy}
-      className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${VARIANTS[variant]} ${className}`}
-    >
+    <button {...rest} disabled={rest.disabled || busy} className={`${BASE} ${VARIANTS[variant]} ${className}`}>
       {busy && <Spinner small />}
       {children}
     </button>
   );
 }
 
-export function LinkButton({ to, children, variant = 'primary' }: { to: string; children: ReactNode; variant?: Variant }) {
+export function LinkButton({ to, children, variant = 'primary', className = '' }: { to: string; children: ReactNode; variant?: Variant; className?: string }) {
   return (
-    <Link to={to} className={`inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium shadow-sm ${VARIANTS[variant]}`}>
+    <Link to={to} className={`${BASE} ${VARIANTS[variant]} ${className}`}>
       {children}
     </Link>
   );
@@ -41,6 +39,7 @@ export function Spinner({ small }: { small?: boolean }) {
   return (
     <span
       className={`inline-block animate-spin rounded-full border-2 border-current border-t-transparent ${small ? 'h-4 w-4' : 'h-6 w-6'}`}
+      role="status"
       aria-label="Loading"
     />
   );
@@ -54,12 +53,22 @@ export function Loading() {
   );
 }
 
-export function Card({ title, actions, children, className = '' }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
+export function Card({
+  title,
+  actions,
+  children,
+  className = '',
+}: {
+  title?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <section className={`rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5 ${className}`}>
+    <section className={`rounded-2xl border border-slate-200 bg-surface p-5 shadow-sm transition-shadow hover:shadow-md sm:p-6 ${className}`}>
       {(title || actions) && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          {title && <h2 className="text-base font-semibold text-slate-800">{title}</h2>}
+          {title && <h2 className="text-base font-semibold tracking-tight text-slate-900">{title}</h2>}
           {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
         </div>
       )}
@@ -68,14 +77,26 @@ export function Card({ title, actions, children, className = '' }: { title?: Rea
   );
 }
 
-export function Field({ label, error, hint, children, className = '' }: { label: string; error?: string; hint?: string; children: ReactNode; className?: string }) {
+export function Field({
+  label,
+  error,
+  hint,
+  children,
+  className = '',
+}: {
+  label: string;
+  error?: string;
+  hint?: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     // Wrapping in <label> associates the text with the (first) control inside.
-    <label className={`flex flex-col gap-1 ${className}`}>
+    <label className={`flex flex-col gap-1.5 ${className}`}>
       <span className="text-sm font-medium text-slate-700">{label}</span>
       {children}
       {hint && !error && <span className="text-xs text-slate-500">{hint}</span>}
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && <span className="text-xs font-medium text-red-600">{error}</span>}
     </label>
   );
 }
@@ -86,13 +107,20 @@ export function Alert({ kind = 'error', children }: { kind?: 'error' | 'success'
     success: 'border-green-200 bg-green-50 text-green-800',
     info: 'border-blue-200 bg-blue-50 text-blue-800',
   }[kind];
-  return <div className={`rounded-md border px-3 py-2 text-sm ${cls}`}>{children}</div>;
+  return (
+    <div role={kind === 'error' ? 'alert' : 'status'} className={`animate-fade-in rounded-xl border px-4 py-3 text-sm ${cls}`}>
+      {children}
+    </div>
+  );
 }
 
-export function PageHeader({ title, actions }: { title: ReactNode; actions?: ReactNode }) {
+export function PageHeader({ title, subtitle, actions }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
+        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+      </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
   );
@@ -109,7 +137,7 @@ const STATUS_CLS: Record<string, string> = {
   CANCELLED: 'bg-red-100 text-red-700',
 };
 export function StatusBadge({ status }: { status: string }) {
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLS[status] ?? ''}`}>{status}</span>;
+  return <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_CLS[status] ?? ''}`}>{status}</span>;
 }
 
 export function errorMessage(e: unknown): string {
@@ -117,4 +145,37 @@ export function errorMessage(e: unknown): string {
   if (code === 'permission-denied') return 'You do not have permission to do that (or the data failed validation).';
   if (code === 'unavailable') return 'You appear to be offline. Please try again.';
   return (e as Error)?.message ?? String(e);
+}
+
+/** Accessible on/off switch. */
+export function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]/40 ${checked ? 'bg-[var(--brand)]' : 'bg-slate-300'}`}
+    >
+      <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
+    </button>
+  );
+}
+
+/** Small stat tile used on the home page and lists. */
+export function Stat({ label, value, hint, tone = 'default' }: { label: string; value: ReactNode; hint?: ReactNode; tone?: 'default' | 'good' | 'warn' }) {
+  const toneCls = { default: 'text-slate-900', good: 'text-green-700', warn: 'text-amber-700' }[tone];
+  return (
+    <div className="rounded-xl border border-slate-200 bg-surface p-4">
+      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
+      <div className={`mt-1 text-xl font-semibold tabular-nums ${toneCls}`}>{value}</div>
+      {hint && <div className="mt-0.5 text-xs text-slate-500">{hint}</div>}
+    </div>
+  );
+}
+
+/** Empty state for lists. */
+export function Empty({ children }: { children: ReactNode }) {
+  return <p className="rounded-xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">{children}</p>;
 }
