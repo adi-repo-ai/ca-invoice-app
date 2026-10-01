@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getAggregateFromServer,
+  getCountFromServer,
   getDoc,
   getDocs,
   limit,
@@ -324,6 +325,11 @@ export async function listInvoices(
     last: docs[docs.length - 1] ?? null,
     hasMore: snap.docs.length > pageSize,
   };
+}
+
+/** How many invoices match a filter (1 read per 1000 matches). */
+export async function countInvoices(db: Firestore, f: InvoiceFilter): Promise<number> {
+  return (await getCountFromServer(query(collection(db, 'invoices'), ...filterConstraints(f)))).data().count;
 }
 
 /** All invoices matching a filter (for CSV export), fetched in pages of 500. */

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useActor, useAuth } from '../auth';
 import { Alert, Button, Card, Field, LinkButton, Loading, Money, PageHeader, StatusBadge, errorMessage } from '../components/ui';
+import { DownloadIcon, EyeIcon, MailIcon, WhatsAppIcon } from '../components/icons';
 import { useDialog } from '../components/Dialog';
 import { appendAudit, listInvoiceAudit, type AuditEntry } from '../data/audit';
 import { cancelInvoice, getInvoice, issueInvoice, recordPayment, type InvoiceRow } from '../data/invoices';
@@ -106,6 +107,23 @@ export default function InvoiceView() {
     setInv(fresh);
     return fresh;
   }
+
+  // Open the window straight away (inside the click) so pop-up blockers allow it.
+  const view = async () => {
+    if (!(await confirmIssueIfDraft())) return;
+    const win = window.open('', '_blank');
+    act('view', async () => {
+      const current = await readyInvoice();
+      const { blob, fileName } = await makePdf(current, settings);
+      const url = URL.createObjectURL(blob);
+      if (win) win.location.href = url;
+      else {
+        const { downloadBlob } = await import('../pdf/generate');
+        downloadBlob(blob, fileName);
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    });
+  };
 
   const download = async () => {
     if (!(await confirmIssueIfDraft())) return;
@@ -213,21 +231,29 @@ export default function InvoiceView() {
         {inv.status === 'DRAFT' && (
           <p className="mb-3 text-sm text-slate-600">This is a draft. Any button below creates the invoice (with its number) first.</p>
         )}
-        <div className="grid gap-2 sm:grid-cols-3">
-          <Button variant="secondary" className="py-3" busy={busy === 'pdf'} onClick={download}>
-            ⬇ Download PDF
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <Button variant="secondary" className="gap-2 py-3" busy={busy === 'view'} onClick={view}>
+            <EyeIcon /> View PDF
+          </Button>
+          <Button variant="secondary" className="gap-2 py-3" busy={busy === 'pdf'} onClick={download}>
+            <DownloadIcon /> Download PDF
           </Button>
           {inv.status !== 'CANCELLED' && (
             <>
-              <Button variant="secondary" className="py-3" busy={busy === 'email'} onClick={() => send('email')}>
-                ✉ Email{inv.client.email ? ` ${inv.client.email}` : ''}
+              <Button variant="secondary" className="gap-2 py-3" busy={busy === 'email'} onClick={() => send('email')}>
+                <MailIcon /> <span className="truncate">Send by email</span>
               </Button>
-              <Button variant="secondary" className="!border-green-600 py-3 !text-green-700" busy={busy === 'whatsapp'} onClick={() => send('whatsapp')}>
-                WhatsApp{wa ? ` +${wa}` : ''}
+              <Button variant="secondary" className="gap-2 !border-green-600 py-3 !text-green-700" busy={busy === 'whatsapp'} onClick={() => send('whatsapp')}>
+                <WhatsAppIcon /> Send to WhatsApp
               </Button>
             </>
           )}
         </div>
+        {inv.status !== 'CANCELLED' && (inv.client.email || wa) && (
+          <p className="mt-2 text-xs text-slate-500">
+            {[inv.client.email && `Email: ${inv.client.email}`, wa && `WhatsApp: +${wa}`].filter(Boolean).join(' · ')}
+          </p>
+        )}
           {openLink && (
             <p className="mt-3 text-sm">
               <a className="font-medium text-[var(--brand)] underline" href={openLink.href} target="_blank" rel="noopener noreferrer">
@@ -385,7 +411,7 @@ export default function InvoiceView() {
             ))}
           {gst && t.reimbursementsPaise !== 0 && <TotalRow label="Reimbursements" paise={t.reimbursementsPaise} />}
           {t.roundOffPaise !== 0 && <TotalRow label="Round off" paise={t.roundOffPaise} />}
-          <div className="flex justify-between border-t pt-2 text-base font-semibold">
+          <div className="!mt-4 flex justify-between border-t border-slate-200 pt-4 text-base font-semibold">
             <dt>Total Invoice Value</dt>
             <dd>
               <Money paise={t.grandTotalPaise} />

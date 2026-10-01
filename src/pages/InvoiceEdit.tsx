@@ -384,7 +384,7 @@ export default function InvoiceEdit() {
               ))}
             {settings.chargeGst && t.reimbursementsPaise !== 0 && <Row label="Reimbursements" paise={t.reimbursementsPaise} />}
             {t.roundOffPaise !== 0 && <Row label="Round off" paise={t.roundOffPaise} />}
-            <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold">
+            <div className="!mt-4 flex justify-between border-t border-slate-200 pt-4 text-base font-semibold">
               <dt>Total Invoice Value</dt>
               <dd>
                 <Money paise={t.grandTotalPaise} />

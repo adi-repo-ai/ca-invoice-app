@@ -82,11 +82,11 @@ function makeStyles(brand: string) {
     words: { flex: 1, padding: 10, backgroundColor: '#f3f4f6', borderRadius: 4 },
     totals: { width: 230 },
     tRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3, paddingHorizontal: 8 },
-    grand: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, paddingHorizontal: 8, marginTop: 4, backgroundColor: brand, color: '#ffffff', fontFamily: 'Helvetica-Bold', fontSize: 11, borderRadius: 3 },
+    grand: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, paddingHorizontal: 8, marginTop: 12, backgroundColor: brand, color: '#ffffff', fontFamily: 'Helvetica-Bold', fontSize: 11, borderRadius: 3 },
     // ---- notes / signature / terms ----
     notes: { marginTop: 12, borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 10 },
     text: { color: '#374151', marginBottom: 1 },
-    bottom: { marginTop: 'auto', paddingTop: 16 },
+    bottom: { marginTop: 16 },
     bottomRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
     signWrap: { paddingTop: 28 },
     signBlock: { width: 210, alignItems: 'center' },
