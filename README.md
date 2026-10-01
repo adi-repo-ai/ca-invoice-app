@@ -30,7 +30,7 @@ credentials exist only as Netlify Function environment variables. Only
 |---|---|---|
 | `settings/firm` | Firm details, bank/UPI, GST rate, SAC list, invoice prefix, due days, brand colour, logo (data URL ≤ 300 KB) | ADMIN |
 | `users/{uid}` | Profile mirror (email, name, role, disabled) for the Users page | Netlify Function only |
-| `clients/{id}` | Name, contact, email, WhatsApp, address, state + GST state code, GSTIN, PAN | ADMIN, STAFF (no delete) |
+| `clients/{id}` | Name, contact, email, WhatsApp, address, state + GST state code, GSTIN, PAN | ADMIN, STAFF (deleting a client never changes its past invoices) |
 | `invoices/{id}` | Client snapshot, line items, reimbursements, totals (**integer paise**), status, number, payment, cancellation | See rules below |
 | `counters/{FY}` e.g. `counters/2026-27` | `{ last, lastInvoiceId }`, the last number used in that financial year | Only together with issuing an invoice |
 | `auditLog/{id}` | Who did what to which invoice, with server timestamps | Append-only |
@@ -254,11 +254,16 @@ the local `.env`.
 The app has three tabs: **Invoices** (home, with this month's / this year's totals), **Clients** and
 **Settings** (ADMIN only: firm details, users, backup).
 
-1. **Invoices → + New invoice**. Pick the client (or **+ Add a new client** right there; the state decides
-   CGST+SGST vs IGST), add the services and any reimbursements (no GST), then **Create invoice**.
-   (**Save as draft** keeps it editable without a number.)
-2. The invoice opens with a **Send to client** box: **Download PDF**, **Email** and **WhatsApp**. Email and
-   WhatsApp use your own apps, so no email server is needed:
+1. **Invoices → + New invoice**.
+   * **Client:** choose **Saved client**, or **New / one-off client** and type the details. Tick "Save this
+     client to my client list" to keep them; untick it to bill a client once without saving them. The state
+     decides CGST+SGST vs IGST.
+   * **Services:** pick a service. Its description, SAC code and default price (set in **Settings → Firm
+     details → Services you bill**) fill in automatically and can be changed per invoice. Add reimbursements
+     (no GST) if needed.
+   * **Create invoice** (or **Save as draft** to keep it editable without a number).
+2. The invoice page always shows **Download PDF**, **Email** and **WhatsApp** (for a draft, these first
+   create the invoice and its number). Email and WhatsApp use your own apps, so no email server is needed:
    * on a phone, the share sheet opens with the PDF attached; pick Gmail, WhatsApp, etc.;
    * on a computer, the PDF downloads and a ready-written email (or WhatsApp chat) opens; attach the PDF and
      send.

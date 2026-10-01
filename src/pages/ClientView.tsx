@@ -1,9 +1,9 @@
 import type { DocumentSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { InvoiceTable } from '../components/InvoiceTable';
 import { Alert, Button, Card, LinkButton, Loading, PageHeader, errorMessage } from '../components/ui';
-import { getClient, type ClientRow } from '../data/clients';
+import { deleteClient, getClient, type ClientRow } from '../data/clients';
 import { listInvoices, type InvoiceRow } from '../data/invoices';
 import { db } from '../firebase';
 
@@ -14,6 +14,8 @@ export default function ClientView() {
   const [cursor, setCursor] = useState<DocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!id) return;
@@ -56,6 +58,23 @@ export default function ClientView() {
               Edit
             </LinkButton>
             <LinkButton to={`/invoices/new?client=${client.id}`}>New invoice</LinkButton>
+            <Button
+              variant="danger"
+              busy={deleting}
+              onClick={async () => {
+                if (!window.confirm(`Delete ${client.name} from your client list? Existing invoices are kept unchanged.`)) return;
+                setDeleting(true);
+                try {
+                  await deleteClient(db, client.id);
+                  navigate('/clients', { replace: true });
+                } catch (e) {
+                  setError(errorMessage(e));
+                  setDeleting(false);
+                }
+              }}
+            >
+              Delete client
+            </Button>
           </>
         }
       />
@@ -64,7 +83,7 @@ export default function ClientView() {
           {line('Contact person', client.contactPerson)}
           {line('Email', client.email)}
           {line('WhatsApp', client.whatsapp ? `+${client.whatsapp}` : '')}
-          {line('State', `${client.stateName} (${client.stateCode})`)}
+          {line('State', client.stateName)}
           {line('GSTIN', client.gstin)}
           {line('PAN', client.pan)}
           {line('Billing address', client.address)}

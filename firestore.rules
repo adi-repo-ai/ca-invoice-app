@@ -100,7 +100,9 @@ service cloud.firestore {
       allow update: if isStaff() && validClient(request.resource.data)
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if false;
+      // Invoices keep their own copy of the client's details, so removing a
+      // client never changes past invoices.
+      allow delete: if isStaff();
     }
 
     // ---------- invoices ----------
@@ -112,7 +114,7 @@ service cloud.firestore {
     function issuedOnlyKeys() { return ['number', 'seq', 'fy', 'firm', 'issuedAt', 'issuedBy']; }
 
     function validInvoiceBody(d) {
-      return d.clientId is string && d.clientId.size() > 0
+      return d.clientId is string // '' = one-off client not saved to the client list
         && d.client is map && nonEmpty(d.client.name, 200)
         && d.items is list && d.items.size() <= 50
         && d.reimbursements is list && d.reimbursements.size() <= 30

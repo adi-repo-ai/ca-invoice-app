@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useActor } from '../auth';
+import { ClientFields } from '../components/ClientFields';
 import { ClientPicker } from '../components/ClientPicker';
-import { QuickClientForm } from '../components/QuickClientForm';
 import { Alert, Button, Card, Field, Loading, Money, PageHeader, errorMessage } from '../components/ui';
-import { getClient, type ClientRow } from '../data/clients';
+import { createClient, getClient, type ClientInput, type ClientRow } from '../data/clients';
 import { clientSnapshot, createDraft, getInvoice, issueInvoice, updateDraft, type DraftInput } from '../data/invoices';
 import { db } from '../firebase';
 import { paiseToInput, parseRupeesToPaise } from '../lib/money';
 import { computeInvoice } from '../lib/tax';
+import type { ClientSnapshot, SacCode } from '../lib/types';
+import { normaliseWhatsapp } from '../lib/validation';
 import { useSettings } from '../settings-context';
+import { validateClient } from './ClientEdit';
 
 interface ItemRow {
+  service: string; // index into settings.sacCodes, '' = none chosen
   description: string;
   sac: string;
   qty: string;
@@ -21,11 +25,21 @@ interface ReimbRow {
   description: string;
   amount: string;
 }
+type ClientMode = 'saved' | 'new';
 
 function parseQty(q: string): number | null {
   if (!/^\d+(\.\d{1,2})?$/.test(q.trim())) return null;
   const n = Number(q);
   return n > 0 && n <= 100000 ? n : null;
+}
+
+const emptyLine = (): ItemRow => ({ service: '', description: '', sac: '', qty: '1', rate: '' });
+
+/** Which configured service a stored line came from (for editing drafts). */
+function serviceIndex(services: SacCode[], sac: string, description: string): string {
+  let i = services.findIndex((c) => c.code === sac && c.description === description);
+  if (i < 0) i = services.findIndex((c) => c.code === sac);
+  return i < 0 ? '' : String(i);
 }
 
 export default function InvoiceEdit() {
@@ -34,18 +48,33 @@ export default function InvoiceEdit() {
   const navigate = useNavigate();
   const actor = useActor();
   const { settings, saved } = useSettings();
+  const services = settings.sacCodes;
 
   const [loading, setLoading] = useState(Boolean(id) || params.has('client'));
+  // Client: pick a saved one, or type details (optionally saving them to the list).
+  const [mode, setMode] = useState<ClientMode>('saved');
   const [client, setClient] = useState<ClientRow | null>(null);
-  const [items, setItems] = useState<ItemRow[]>([{ description: '', sac: settings.sacCodes[0]?.code ?? '', qty: '1', rate: '' }]);
+  const [newClient, setNewClient] = useState<ClientInput>({
+    name: '',
+    contactPerson: '',
+    email: '',
+    whatsapp: '',
+    address: '',
+    stateName: settings.stateName,
+    stateCode: settings.stateCode,
+    gstin: '',
+    pan: '',
+  });
+  const [saveNewClient, setSaveNewClient] = useState(true);
+  const [clientErrors, setClientErrors] = useState<ReturnType<typeof validateClient>>({});
+  const [items, setItems] = useState<ItemRow[]>([emptyLine()]);
   const [reimbs, setReimbs] = useState<ReimbRow[]>([]);
   const [terms, setTerms] = useState(settings.defaultTerms);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<'' | 'save' | 'issue'>('');
-  const [addingClient, setAddingClient] = useState(false);
-  // Remembers a draft created by this form so a retry updates it instead of
-  // creating a duplicate (e.g. when "Save & issue" saved but issuing failed).
+  // Remember records created by this form so a retry doesn't duplicate them.
   const createdId = useRef<string | undefined>(undefined);
+  const createdClientId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     (async () => {
@@ -54,9 +83,25 @@ export default function InvoiceEdit() {
           const inv = await getInvoice(db, id);
           if (!inv) return setError('Invoice not found');
           if (inv.status !== 'DRAFT') return navigate(`/invoices/${id}`, { replace: true });
-          const c = await getClient(db, inv.clientId);
-          setClient(c ?? { id: inv.clientId, ...inv.client, nameLower: inv.client.name.toLowerCase() });
-          setItems(inv.items.map((it) => ({ description: it.description, sac: it.sac, qty: String(it.qty), rate: paiseToInput(it.ratePaise) })));
+          const c = inv.clientId ? await getClient(db, inv.clientId) : null;
+          if (c) {
+            setMode('saved');
+            setClient(c);
+          } else {
+            // One-off client (or a client that was since removed): edit the details inline.
+            setMode('new');
+            setSaveNewClient(false);
+            setNewClient({ ...inv.client });
+          }
+          setItems(
+            inv.items.map((it) => ({
+              service: serviceIndex(services, it.sac, it.description),
+              description: it.description,
+              sac: it.sac,
+              qty: String(it.qty),
+              rate: paiseToInput(it.ratePaise),
+            })),
+          );
           setReimbs(inv.reimbursements.map((r) => ({ description: r.description, amount: paiseToInput(r.amountPaise) })));
           setTerms(inv.terms);
         } else if (params.get('client')) {
@@ -68,22 +113,29 @@ export default function InvoiceEdit() {
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, params, navigate]);
 
-  // Parse + validate the form into a DraftInput (or a list of problems).
+  /** The client details that will go on the invoice. */
+  const snapshot: ClientSnapshot | null = useMemo(() => {
+    if (mode === 'saved') return client ? clientSnapshot(client) : null;
+    const wa = newClient.whatsapp ? (normaliseWhatsapp(newClient.whatsapp) ?? newClient.whatsapp) : '';
+    return { ...newClient, name: newClient.name.trim(), email: newClient.email.trim(), whatsapp: wa };
+  }, [mode, client, newClient]);
+
+  // Parse + validate the services into invoice lines (or a list of problems).
   const parsed = useMemo(() => {
     const problems: string[] = [];
-    if (!client) problems.push('Choose a client.');
     const its = items.map((r, i) => {
       const qty = parseQty(r.qty);
       const ratePaise = parseRupeesToPaise(r.rate);
+      if (!r.sac) problems.push(`Line ${i + 1}: choose a service.`);
       if (!r.description.trim()) problems.push(`Line ${i + 1}: description is required.`);
-      if (!r.sac) problems.push(`Line ${i + 1}: choose a SAC code.`);
       if (qty === null) problems.push(`Line ${i + 1}: quantity must be a positive number (max 2 decimals).`);
-      if (ratePaise === null || ratePaise < 0) problems.push(`Line ${i + 1}: enter a valid rate.`);
+      if (ratePaise === null || ratePaise < 0) problems.push(`Line ${i + 1}: enter a valid price.`);
       return { description: r.description.trim(), sac: r.sac, qty: qty ?? 0, ratePaise: ratePaise ?? 0 };
     });
-    if (its.length === 0) problems.push('Add at least one line item.');
+    if (its.length === 0) problems.push('Add at least one service.');
     const rs = reimbs.map((r, i) => {
       const amountPaise = parseRupeesToPaise(r.amount);
       if (!r.description.trim()) problems.push(`Reimbursement ${i + 1}: description is required.`);
@@ -95,26 +147,47 @@ export default function InvoiceEdit() {
       reimbursements: rs,
       gstRateBp: settings.gstRateBp,
       firmStateCode: settings.stateCode,
-      clientStateCode: client?.stateCode ?? settings.stateCode,
+      clientStateCode: snapshot?.stateCode || settings.stateCode,
     });
-    const input: DraftInput | null = client
-      ? { clientId: client.id, client: clientSnapshot(client), items: its, reimbursements: rs, terms }
-      : null;
-    return { problems, preview, input };
-  }, [client, items, reimbs, terms, settings]);
+    return { problems, preview, its, rs };
+  }, [items, reimbs, settings, snapshot]);
+
+  /** Resolve the client (saving a new one if asked) and build the draft input. */
+  async function buildInput(): Promise<DraftInput | null> {
+    if (mode === 'saved') {
+      if (!client) {
+        setError('Choose a saved client, or switch to "New / one-off client" and type the details.');
+        return null;
+      }
+      return { clientId: client.id, client: clientSnapshot(client), items: parsed.its, reimbursements: parsed.rs, terms };
+    }
+    const errs = validateClient(snapshot as ClientInput);
+    setClientErrors(errs);
+    if (Object.keys(errs).length) {
+      setError('Please check the client details.');
+      return null;
+    }
+    let clientId = '';
+    if (saveNewClient) {
+      clientId = createdClientId.current ?? (createdClientId.current = await createClient(db, actor.uid, snapshot as ClientInput));
+    }
+    return { clientId, client: snapshot!, items: parsed.its, reimbursements: parsed.rs, terms };
+  }
 
   async function save(issue: boolean) {
-    if (parsed.problems.length || !parsed.input) return setError(parsed.problems.join(' '));
+    if (parsed.problems.length) return setError(parsed.problems.join(' '));
     if (issue) {
-      if (!saved) return setError('An administrator must save the firm settings before invoices can be issued.');
+      if (!saved) return setError('Please fill in and save Settings (firm details) once before creating invoices.');
       if (!window.confirm('Create this invoice? It gets the next invoice number and can no longer be edited.')) return;
     }
     setBusy(issue ? 'issue' : 'save');
     setError('');
     try {
+      const input = await buildInput();
+      if (!input) return;
       let invoiceId = id ?? createdId.current;
-      if (invoiceId) await updateDraft(db, actor, invoiceId, parsed.input, settings);
-      else invoiceId = createdId.current = await createDraft(db, actor, parsed.input, settings);
+      if (invoiceId) await updateDraft(db, actor, invoiceId, input, settings);
+      else invoiceId = createdId.current = await createDraft(db, actor, input, settings);
       if (issue) await issueInvoice(db, actor, invoiceId, settings);
       navigate(`/invoices/${invoiceId}`, { state: { justIssued: issue } });
     } catch (e) {
@@ -130,27 +203,59 @@ export default function InvoiceEdit() {
   const setItem = (i: number, k: keyof ItemRow, v: string) => setItems(items.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   const setReimb = (i: number, k: keyof ReimbRow, v: string) => setReimbs(reimbs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
 
+  /** Choosing a service fills in its description, SAC code and default price. */
+  function chooseService(i: number, value: string) {
+    const svc = value === '' ? null : services[Number(value)];
+    setItems(
+      items.map((r, j) => {
+        if (j !== i) return r;
+        if (!svc) return { ...r, service: '', sac: '' };
+        const prev = r.service === '' ? null : services[Number(r.service)];
+        const keepDescription = r.description.trim() && r.description !== prev?.description;
+        return {
+          ...r,
+          service: value,
+          sac: svc.code,
+          description: keepDescription ? r.description : svc.description,
+          rate: svc.ratePaise ? paiseToInput(svc.ratePaise) : r.rate,
+        };
+      }),
+    );
+  }
+
+  const modeBtn = (m: ClientMode, label: string) => (
+    <button
+      type="button"
+      onClick={() => {
+        setMode(m);
+        setError('');
+      }}
+      className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === m ? 'bg-[var(--brand)] text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div className="space-y-4">
       <PageHeader title={id ? 'Edit draft invoice' : 'New invoice'} />
       {error && <Alert>{error}</Alert>}
 
       <Card title="1. Client">
-        {addingClient ? (
-          <QuickClientForm
-            onCreated={(c) => {
-              setClient(c);
-              setAddingClient(false);
-            }}
-            onCancel={() => setAddingClient(false)}
-          />
+        <div className="mb-3 flex flex-wrap gap-2">
+          {modeBtn('saved', 'Saved client')}
+          {modeBtn('new', 'New / one-off client')}
+        </div>
+        {mode === 'saved' ? (
+          <ClientPicker value={client} onChange={setClient} />
         ) : (
-          <>
-            <ClientPicker value={client} onChange={setClient} />
-            <button type="button" className="mt-2 text-sm font-medium text-[var(--brand)]" onClick={() => setAddingClient(true)}>
-              + Add a new client
-            </button>
-          </>
+          <div className="space-y-3">
+            <ClientFields value={newClient} onChange={setNewClient} errors={clientErrors} />
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" className="h-4 w-4" checked={saveNewClient} onChange={(e) => setSaveNewClient(e.target.checked)} />
+              Save this client to my client list for next time
+            </label>
+          </div>
         )}
       </Card>
 
@@ -159,27 +264,27 @@ export default function InvoiceEdit() {
           {items.map((r, i) => {
             const amount = parsed.preview.items[i]?.amountPaise ?? 0;
             return (
-              <div key={i} className="grid grid-cols-2 gap-2 rounded-md border border-slate-200 p-3 sm:grid-cols-12 sm:items-end sm:border-0 sm:p-0">
-                <Field label="Description" className="col-span-2 sm:col-span-5">
-                  <input value={r.description} onChange={(e) => setItem(i, 'description', e.target.value)} />
-                </Field>
-                <Field label="SAC" className="col-span-2 sm:col-span-2">
-                  <select value={r.sac} onChange={(e) => setItem(i, 'sac', e.target.value)}>
-                    <option value="">Select…</option>
-                    {settings.sacCodes.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.code} – {c.description}
+              <div key={i} className="grid grid-cols-2 gap-2 rounded-md border border-slate-200 p-3 sm:grid-cols-12 sm:items-end">
+                <Field label="Service" className="col-span-2 sm:col-span-4">
+                  <select value={r.service} onChange={(e) => chooseService(i, e.target.value)}>
+                    <option value="">Choose a service…</option>
+                    {services.map((c, k) => (
+                      <option key={k} value={String(k)}>
+                        {c.description || 'Service'} (SAC {c.code}){c.ratePaise ? ` – ₹${paiseToInput(c.ratePaise)}` : ''}
                       </option>
                     ))}
                   </select>
                 </Field>
+                <Field label="Description on invoice" className="col-span-2 sm:col-span-4">
+                  <input value={r.description} onChange={(e) => setItem(i, 'description', e.target.value)} />
+                </Field>
                 <Field label="Qty" className="sm:col-span-1">
                   <input inputMode="decimal" value={r.qty} onChange={(e) => setItem(i, 'qty', e.target.value)} />
                 </Field>
-                <Field label="Rate (₹)" className="sm:col-span-2">
+                <Field label="Price (₹)" className="sm:col-span-2">
                   <input inputMode="decimal" value={r.rate} onChange={(e) => setItem(i, 'rate', e.target.value)} />
                 </Field>
-                <div className="col-span-2 flex items-center justify-between gap-2 sm:col-span-2 sm:flex-col sm:items-end">
+                <div className="col-span-2 flex items-center justify-between gap-2 sm:col-span-1 sm:flex-col sm:items-end">
                   <Money paise={amount} className="text-sm font-medium" />
                   {items.length > 1 && (
                     <button type="button" className="text-xs text-red-600" onClick={() => setItems(items.filter((_, j) => j !== i))}>
@@ -190,8 +295,11 @@ export default function InvoiceEdit() {
               </div>
             );
           })}
-          <Button type="button" variant="secondary" onClick={() => setItems([...items, { description: '', sac: settings.sacCodes[0]?.code ?? '', qty: '1', rate: '' }])}>
-            Add line
+          {services.length === 0 && (
+            <p className="text-sm text-amber-700">No services set up yet: add them in Settings → Firm details → Services you bill.</p>
+          )}
+          <Button type="button" variant="secondary" onClick={() => setItems([...items, emptyLine()])}>
+            + Add another service
           </Button>
           {reimbs.length === 0 && (
             <button type="button" className="ml-3 text-sm font-medium text-[var(--brand)]" onClick={() => setReimbs([{ description: '', amount: '' }])}>
@@ -253,9 +361,9 @@ export default function InvoiceEdit() {
               </dd>
             </div>
             <p className="pt-1 text-xs text-slate-500">{parsed.preview.amountInWords}</p>
-            {client && (
+            {snapshot?.stateName && (
               <p className="pt-1 text-xs text-slate-500">
-                {intra ? 'Intra-state supply: CGST + SGST' : 'Inter-state supply: IGST'} · Place of supply {client.stateName} ({client.stateCode})
+                {intra ? 'Same state: CGST + SGST' : 'Other state: IGST'} · Place of supply {snapshot.stateName}
               </p>
             )}
           </dl>

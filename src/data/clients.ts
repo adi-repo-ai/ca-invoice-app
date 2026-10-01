@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   endAt,
   getDoc,
@@ -68,4 +69,9 @@ export async function updateClient(db: Firestore, uid: string, id: string, c: Cl
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });
+}
+
+/** Remove a saved client. Their invoices keep a full copy of the details. */
+export async function deleteClient(db: Firestore, id: string): Promise<void> {
+  await deleteDoc(doc(db, 'clients', id));
 }

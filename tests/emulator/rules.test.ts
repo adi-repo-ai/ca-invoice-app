@@ -127,11 +127,13 @@ describe('clients', () => {
     expect(id).toBeTruthy();
   });
 
-  it('rejects malformed GSTIN / PAN and deletes', async () => {
+  it('rejects malformed GSTIN / PAN; only staff can delete', async () => {
     const db = fs(asStaff(env));
     await assertFails(createClient(db, STAFF.uid, { ...TS_CLIENT, gstin: '36AABCU9603R1Z' }));
     await assertFails(createClient(db, STAFF.uid, { ...TS_CLIENT, pan: 'ABC' }));
-    await assertFails(deleteDoc(doc(db, 'clients/ts')));
+    await assertFails(deleteDoc(doc(fs(env.unauthenticatedContext()), 'clients/ts')));
+    await assertFails(deleteDoc(doc(fs(asNoRole(env)), 'clients/ts')));
+    await assertSucceeds(deleteDoc(doc(db, 'clients/ts'))); // staff can remove a client
   });
 });
 
@@ -140,6 +142,25 @@ describe('invoices', () => {
     const db = fs(asStaff(env));
     const id = await assertSucceeds(createDraft(db, STAFF, draftInput('ts'), SETTINGS));
     await assertSucceeds(updateDraft(db, STAFF, id, draftInput('ka'), SETTINGS));
+  });
+
+  it('works for a one-off client that is not saved to the client list', async () => {
+    const db = fs(asStaff(env));
+    const input = { ...draftInput('ka'), clientId: '' };
+    const id = await assertSucceeds(createDraft(db, STAFF, input, SETTINGS));
+    const number = await issueInvoice(db, STAFF, id, SETTINGS);
+    const inv = (await getInvoice(db, id))!;
+    expect(number).toMatch(/^LKA\/\d{4}-\d{2}\/0001$/);
+    expect(inv.client.name).toBe('Karnataka Co');
+    expect(inv.taxType).toBe('INTER');
+  });
+
+  it('issuing still works after the saved client was deleted', async () => {
+    const db = fs(asStaff(env));
+    const id = await createDraft(db, STAFF, draftInput('ts'), SETTINGS);
+    await deleteDoc(doc(db, 'clients/ts'));
+    await issueInvoice(db, STAFF, id, SETTINGS);
+    expect((await getInvoice(db, id))!.client.name).toBe('Telangana Co');
   });
 
   it('a draft cannot carry a number or be created as ISSUED', async () => {

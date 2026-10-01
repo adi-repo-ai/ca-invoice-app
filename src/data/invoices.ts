@@ -36,7 +36,7 @@ export interface InvoiceRow extends Invoice {
 }
 
 export interface DraftInput {
-  clientId: string;
+  clientId: string; // '' for a one-off client that isn't saved to the client list
   client: ClientSnapshot;
   items: LineInput[];
   reimbursements: Reimbursement[];
@@ -188,8 +188,12 @@ async function issueOnce(
       if (inv.items.length === 0) throw new Error('Add at least one line item before issuing');
 
       // Use the client's latest details on the issued invoice.
-      const clientSnap = await tx.get(doc(db, 'clients', inv.clientId));
-      const client = clientSnap.exists() ? clientSnapshot(clientSnap.data() as Client) : inv.client;
+      // (One-off clients have no saved record; deleted clients keep the snapshot.)
+      let client = inv.client;
+      if (inv.clientId) {
+        const clientSnap = await tx.get(doc(db, 'clients', inv.clientId));
+        if (clientSnap.exists()) client = clientSnapshot(clientSnap.data() as Client);
+      }
 
       const issueDate = todayIST();
       const fy = fyForDate(issueDate);

@@ -4,7 +4,7 @@ import { useAuth } from '../auth';
 import { Alert, Button, Card, Field, Loading, PageHeader, errorMessage } from '../components/ui';
 import { createClient, getClient, updateClient, type ClientInput } from '../data/clients';
 import { db } from '../firebase';
-import { INDIAN_STATES } from '../lib/states';
+import { INDIAN_STATES, STATES_BY_NAME } from '../lib/states';
 import { isValidEmail, isValidGstin, isValidPan, normaliseWhatsapp } from '../lib/validation';
 import { useSettings } from '../settings-context';
 
@@ -118,9 +118,9 @@ export default function ClientEdit() {
               }}
             >
               <option value="">Select state…</option>
-              {INDIAN_STATES.map((s) => (
+              {STATES_BY_NAME.map((s) => (
                 <option key={s.code} value={s.code}>
-                  {s.code} – {s.name}
+                  {s.name}
                 </option>
               ))}
             </select>

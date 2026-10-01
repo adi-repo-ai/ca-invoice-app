@@ -6,7 +6,8 @@ import { saveSettings } from '../data/settings';
 import { db } from '../firebase';
 import { formatInvoiceNumber, fyForDate, todayIST } from '../lib/fy';
 import { resizeLogo } from '../lib/image';
-import { INDIAN_STATES } from '../lib/states';
+import { paiseToInput, parseRupeesToPaise } from '../lib/money';
+import { INDIAN_STATES, STATES_BY_NAME } from '../lib/states';
 import type { FirmSettings } from '../lib/types';
 import { HEX_COLOR_RE, IFSC_RE, SAC_RE, isValidEmail, isValidGstin, isValidPan } from '../lib/validation';
 import { useSettings } from '../settings-context';
@@ -36,6 +37,8 @@ export default function Settings() {
   const { settings, saved, reload } = useSettings();
   const [s, setS] = useState<FirmSettings>(settings);
   const [gstRate, setGstRate] = useState(String(settings.gstRateBp / 100));
+  // Default service prices as typed (rupees); converted to paise on save.
+  const [rates, setRates] = useState<string[]>(settings.sacCodes.map((c) => (c.ratePaise ? paiseToInput(c.ratePaise) : '')));
   const [errors, setErrors] = useState<Errors>({});
   const [msg, setMsg] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -43,6 +46,7 @@ export default function Settings() {
   useEffect(() => {
     setS(settings);
     setGstRate(String(settings.gstRateBp / 100));
+    setRates(settings.sacCodes.map((c) => (c.ratePaise ? paiseToInput(c.ratePaise) : '')));
   }, [settings]);
 
   const set = <K extends keyof FirmSettings>(k: K, v: FirmSettings[K]) => setS((p) => ({ ...p, [k]: v }));
@@ -60,6 +64,9 @@ export default function Settings() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     const errs = validate(s, gstRate);
+    rates.forEach((r, i) => {
+      if (r.trim() && (parseRupeesToPaise(r) ?? -1) < 0) errs[`rate${i}`] = 'Enter a valid price or leave blank';
+    });
     setErrors(errs);
     if (Object.keys(errs).length) return setMsg({ kind: 'error', text: 'Please fix the highlighted fields.' });
     setBusy(true);
@@ -67,7 +74,11 @@ export default function Settings() {
     try {
       const [whole, frac = ''] = gstRate.split('.');
       const gstRateBp = Number(whole) * 100 + Number(frac.padEnd(2, '0'));
-      await saveSettings(db, user!.uid, { ...s, gstRateBp, name: s.name.trim() });
+      const sacCodes = s.sacCodes.map((c, i) => {
+        const ratePaise = rates[i]?.trim() ? parseRupeesToPaise(rates[i]) : null;
+        return ratePaise ? { code: c.code, description: c.description.trim(), ratePaise } : { code: c.code, description: c.description.trim() };
+      });
+      await saveSettings(db, user!.uid, { ...s, sacCodes, gstRateBp, name: s.name.trim() });
       await reload();
       setMsg({ kind: 'success', text: 'Settings saved.' });
     } catch (err) {
@@ -109,9 +120,9 @@ export default function Settings() {
                 setS((p) => ({ ...p, stateCode: st.code, stateName: st.name }));
               }}
             >
-              {INDIAN_STATES.map((st) => (
+              {STATES_BY_NAME.map((st) => (
                 <option key={st.code} value={st.code}>
-                  {st.code} – {st.name}
+                  {st.name}
                 </option>
               ))}
             </select>
@@ -165,11 +176,20 @@ export default function Settings() {
           </Field>
         </div>
         <div className="mt-5">
-          <h3 className="mb-2 text-sm font-semibold text-slate-700">SAC codes</h3>
-          <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-slate-700">Services you bill</h3>
+          <p className="mb-2 text-xs text-slate-500">
+            Choosing a service on an invoice fills in its description, SAC code and default price (price is optional and can be changed per invoice).
+          </p>
+          <div className="space-y-3">
             {s.sacCodes.map((c, i) => (
-              <div key={i} className="flex flex-wrap items-start gap-2">
-                <div className="w-32">
+              <div key={i} className="grid grid-cols-2 gap-2 rounded-md border border-slate-200 p-2 sm:grid-cols-12 sm:items-start sm:border-0 sm:p-0">
+                <input
+                  className="col-span-2 min-w-0 sm:col-span-6"
+                  placeholder="Service (e.g. Income tax return filing)"
+                  value={c.description}
+                  onChange={(e) => set('sacCodes', s.sacCodes.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))}
+                />
+                <div className="sm:col-span-2">
                   <input
                     className="w-full"
                     placeholder="SAC"
@@ -179,19 +199,38 @@ export default function Settings() {
                   />
                   {errors[`sac${i}`] && <p className="text-xs text-red-600">{errors[`sac${i}`]}</p>}
                 </div>
-                <input
-                  className="min-w-0 flex-1"
-                  placeholder="Description"
-                  value={c.description}
-                  onChange={(e) => set('sacCodes', s.sacCodes.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))}
-                />
-                <Button type="button" variant="ghost" onClick={() => set('sacCodes', s.sacCodes.filter((_, j) => j !== i))}>
+                <div className="sm:col-span-2">
+                  <input
+                    className="w-full"
+                    placeholder="Price ₹ (optional)"
+                    inputMode="decimal"
+                    value={rates[i] ?? ''}
+                    onChange={(e) => setRates(s.sacCodes.map((_, j) => (j === i ? e.target.value : (rates[j] ?? ''))))}
+                  />
+                  {errors[`rate${i}`] && <p className="text-xs text-red-600">{errors[`rate${i}`]}</p>}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="col-span-2 sm:col-span-2"
+                  onClick={() => {
+                    set('sacCodes', s.sacCodes.filter((_, j) => j !== i));
+                    setRates(rates.filter((_, j) => j !== i));
+                  }}
+                >
                   Remove
                 </Button>
               </div>
             ))}
-            <Button type="button" variant="secondary" onClick={() => set('sacCodes', [...s.sacCodes, { code: '', description: '' }])}>
-              Add SAC code
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                set('sacCodes', [...s.sacCodes, { code: '', description: '' }]);
+                setRates([...rates, '']);
+              }}
+            >
+              Add service
             </Button>
           </div>
         </div>

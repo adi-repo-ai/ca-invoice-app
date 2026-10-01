@@ -47,3 +47,6 @@ export const INDIAN_STATES: IndianState[] = [
 export function stateName(code: string): string {
   return INDIAN_STATES.find((s) => s.code === code)?.name ?? '';
 }
+
+/** States sorted by name, for dropdowns (the GST code is kept internally). */
+export const STATES_BY_NAME: IndianState[] = [...INDIAN_STATES].sort((a, b) => a.name.localeCompare(b.name));

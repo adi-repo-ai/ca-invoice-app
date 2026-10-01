@@ -77,30 +77,55 @@ export default function InvoiceView() {
   const t = inv.totals;
   const intra = inv.taxType === 'INTRA';
   const issuedLike = inv.status !== 'DRAFT';
-  const sendable = inv.status === 'ISSUED' || inv.status === 'PAID';
   const wa = normaliseWhatsapp(inv.client.whatsapp);
 
-  const download = () =>
+  /**
+   * Drafts have no invoice number yet, so the PDF / share buttons first create
+   * (issue) the invoice, after confirming, and then continue with it.
+   */
+  function confirmIssueIfDraft(): boolean {
+    if (inv!.status !== 'DRAFT') return true;
+    if (!saved) {
+      setMsg({ kind: 'error', text: 'Please fill in and save Settings (firm details) once before creating invoices.' });
+      return false;
+    }
+    return window.confirm('This is a draft. Create the invoice now (it gets the next invoice number and can no longer be edited), then continue?');
+  }
+  async function readyInvoice(): Promise<InvoiceRow> {
+    if (inv!.status !== 'DRAFT') return inv!;
+    await issueInvoice(db, actor, inv!.id, settings);
+    const fresh = await getInvoice(db, inv!.id);
+    if (!fresh) throw new Error('Invoice not found');
+    setInv(fresh);
+    return fresh;
+  }
+
+  const download = () => {
+    if (!confirmIssueIfDraft()) return;
     act('pdf', async () => {
-      const { blob, fileName } = await makePdf(inv, settings);
+      const current = await readyInvoice();
+      const { blob, fileName } = await makePdf(current, settings);
       const { downloadBlob } = await import('../pdf/generate');
       downloadBlob(blob, fileName);
+      return `PDF downloaded: ${fileName}`;
     });
+  };
 
   /**
    * Send via the user's own apps. On phones the share sheet opens with the
-   * PDF attached (pick Gmail / WhatsApp). On computers the PDF is downloaded
-   * and a ready-written email or WhatsApp chat opens for the user to attach it.
+   * PDF attached (pick Gmail / WhatsApp). On computers (or if sharing isn't
+   * allowed) the PDF is downloaded and a ready-written email or WhatsApp chat
+   * opens for the user to attach it. Works even without a saved email/number.
    */
-  const send = (channel: 'email' | 'whatsapp') =>
+  const send = (channel: 'email' | 'whatsapp') => {
+    if (!confirmIssueIfDraft()) return;
     act(channel, async () => {
-      if (channel === 'whatsapp' && !wa) {
-        throw new Error('This client has no valid WhatsApp number. Open the client and add one.');
-      }
-      const firmName = (inv.firm ?? settings).name;
-      const subject = `Invoice ${inv.number} from ${firmName}`;
-      const text = messageText(inv, settings);
-      const { blob, fileName } = await makePdf(inv, settings);
+      const current = await readyInvoice();
+      const waNumber = normaliseWhatsapp(current.client.whatsapp);
+      const firmName = (current.firm ?? settings).name;
+      const subject = `Invoice ${current.number} from ${firmName}`;
+      const text = messageText(current, settings);
+      const { blob, fileName } = await makePdf(current, settings);
       const file = new File([blob], fileName, { type: 'application/pdf' });
       let method = 'download';
       if (navigator.canShare?.({ files: [file] })) {
@@ -109,16 +134,17 @@ export default function InvoiceView() {
           method = 'share-sheet';
         } catch (e) {
           if ((e as Error).name === 'AbortError') return;
-          throw e;
+          // e.g. NotAllowedError when the browser blocks sharing: fall back to download.
         }
-      } else {
+      }
+      if (method === 'download') {
         const { downloadBlob } = await import('../pdf/generate');
         downloadBlob(blob, fileName);
       }
       const link =
         channel === 'whatsapp'
-          ? `https://wa.me/${wa}?text=${encodeURIComponent(text)}`
-          : `mailto:${encodeURIComponent(inv.client.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
+          ? `https://wa.me/${waNumber ?? ''}?text=${encodeURIComponent(text)}`
+          : `mailto:${encodeURIComponent(current.client.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
               `${text}\n\n(Invoice PDF attached: ${fileName})`,
             )}`;
       setOpenLink({ channel, href: link });
@@ -127,17 +153,18 @@ export default function InvoiceView() {
         else window.location.href = link;
       }
       const batch = writeBatch(db);
-      appendAudit(db, batch, actor, inv.id, inv.number ?? null, channel === 'email' ? 'SEND_EMAIL' : 'SEND_WHATSAPP', {
+      appendAudit(db, batch, actor, current.id, current.number ?? null, channel === 'email' ? 'SEND_EMAIL' : 'SEND_WHATSAPP', {
         channel,
-        recipient: channel === 'email' ? inv.client.email : `+${wa}`,
+        recipient: channel === 'email' ? current.client.email : waNumber ? `+${waNumber}` : '',
         method,
       });
       await batch.commit();
       if (method === 'share-sheet') return 'Shared with the PDF attached.';
       return channel === 'email'
         ? `PDF downloaded (${fileName}). Your email app opened with the message ready: attach the PDF and send.`
-        : `PDF downloaded (${fileName}). WhatsApp opened for +${wa}: attach the PDF in the chat and send.`;
+        : `PDF downloaded (${fileName}). WhatsApp opened${waNumber ? ` for +${waNumber}` : ' (choose the contact)'}: attach the PDF in the chat and send.`;
     });
+  };
 
   return (
     <div className="space-y-4">
@@ -169,31 +196,33 @@ export default function InvoiceView() {
       />
       {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
 
-      {issuedLike && (
-        <Card title={sendable ? 'Send to client' : 'Invoice PDF'}>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <Button variant="secondary" className="py-3" busy={busy === 'pdf'} onClick={download}>
-              ⬇ Download PDF
-            </Button>
-            {sendable && (
-              <>
-                <Button variant="secondary" className="py-3" busy={busy === 'email'} onClick={() => send('email')}>
-                  ✉ Email{inv.client.email ? ` ${inv.client.email}` : ''}
-                </Button>
-                <Button variant="secondary" className="!border-green-600 py-3 !text-green-700" busy={busy === 'whatsapp'} onClick={() => send('whatsapp')}>
-                  WhatsApp{wa ? ` +${wa}` : ''}
-                </Button>
-              </>
-            )}
-          </div>
+      <Card title={inv.status === 'CANCELLED' ? 'Invoice PDF' : 'Download or send to client'}>
+        {inv.status === 'DRAFT' && (
+          <p className="mb-3 text-sm text-slate-600">This is a draft. Any button below creates the invoice (with its number) first.</p>
+        )}
+        <div className="grid gap-2 sm:grid-cols-3">
+          <Button variant="secondary" className="py-3" busy={busy === 'pdf'} onClick={download}>
+            ⬇ Download PDF
+          </Button>
+          {inv.status !== 'CANCELLED' && (
+            <>
+              <Button variant="secondary" className="py-3" busy={busy === 'email'} onClick={() => send('email')}>
+                ✉ Email{inv.client.email ? ` ${inv.client.email}` : ''}
+              </Button>
+              <Button variant="secondary" className="!border-green-600 py-3 !text-green-700" busy={busy === 'whatsapp'} onClick={() => send('whatsapp')}>
+                WhatsApp{wa ? ` +${wa}` : ''}
+              </Button>
+            </>
+          )}
+        </div>
           {openLink && (
             <p className="mt-3 text-sm">
               <a className="font-medium text-[var(--brand)] underline" href={openLink.href} target="_blank" rel="noopener noreferrer">
-                {openLink.channel === 'email' ? 'Open the email again' : `Open WhatsApp chat with +${wa}`}
+                {openLink.channel === 'email' ? 'Open the email again' : 'Open the WhatsApp chat again'}
               </a>
             </p>
           )}
-          {inv.status === 'ISSUED' && (
+        {inv.status === 'ISSUED' && (
             <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
               <Button variant="ghost" onClick={() => setPanel(panel === 'payment' ? '' : 'payment')}>
                 ✓ Mark as paid
@@ -205,8 +234,7 @@ export default function InvoiceView() {
               )}
             </div>
           )}
-        </Card>
-      )}
+      </Card>
 
       {panel === 'payment' && (
         <PaymentPanel

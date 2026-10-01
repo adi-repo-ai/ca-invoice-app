@@ -6,9 +6,11 @@ export const ROLES: Role[] = ['ADMIN', 'STAFF'];
 export type InvoiceStatus = 'DRAFT' | 'ISSUED' | 'PAID' | 'CANCELLED';
 export type TaxType = 'INTRA' | 'INTER'; // INTRA = CGST+SGST, INTER = IGST
 
+/** A billable service: its SAC code, the default description and (optionally) a default price. */
 export interface SacCode {
   code: string;
   description: string;
+  ratePaise?: number; // default price; selecting the service fills this in
 }
 
 export interface BankDetails {
