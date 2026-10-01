@@ -4,7 +4,7 @@ import { useActor } from '../auth';
 import { ClientFields } from '../components/ClientFields';
 import { ClientPicker } from '../components/ClientPicker';
 import { useDialog } from '../components/Dialog';
-import { Alert, Button, Card, Field, Loading, Money, PageHeader, errorMessage } from '../components/ui';
+import { Alert, Button, Card, Field, Loading, Money, PageHeader, Switch, errorMessage } from '../components/ui';
 import { createClient, getClient, type ClientInput, type ClientRow } from '../data/clients';
 import { clientSnapshot, createDraft, getInvoice, issueInvoice, updateDraft, type DraftInput } from '../data/invoices';
 import { db } from '../firebase';
@@ -352,11 +352,16 @@ export default function InvoiceEdit() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
-            <label className="mt-3 flex items-center gap-2 text-sm">
-              <input type="checkbox" className="h-4 w-4" checked={includeSignature} onChange={(e) => setIncludeSignature(e.target.checked)} />
-              Add signature to the invoice
-              {!settings.signatureDataUrl && <span className="text-xs text-slate-500">(upload one in Settings)</span>}
-            </label>
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3">
+              <div>
+                <div className="text-sm font-medium">Show signature on the invoice</div>
+                <div className="text-xs text-slate-500">
+                  {includeSignature ? 'Shown: signature block printed on the PDF.' : 'Hidden: no signature block on the PDF.'}
+                  {!settings.signatureDataUrl && ' Upload a signature image in Settings.'}
+                </div>
+              </div>
+              <Switch checked={includeSignature} onChange={setIncludeSignature} label="Show signature on the invoice" />
+            </div>
           </Card>
           <Card>
             <details>

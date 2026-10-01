@@ -95,7 +95,16 @@ export default function Clients() {
     <div className="space-y-6">
       <PageHeader
         title="Clients"
-        subtitle={total === null ? 'Your client list' : `${total} client${total === 1 ? '' : 's'} in total`}
+        subtitle={
+          total === null ? (
+            'Your client list'
+          ) : (
+            <span className="inline-flex items-center gap-2">
+              Total clients
+              <span className="rounded-full bg-[var(--brand)] px-2.5 py-0.5 text-sm font-semibold text-white">{total}</span>
+            </span>
+          )
+        }
         actions={<LinkButton to="/clients/new">+ New client</LinkButton>}
       />
       {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}

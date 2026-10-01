@@ -44,6 +44,8 @@ function makeStyles(brand: string) {
     firmBlock: { flexDirection: 'row', alignItems: 'flex-start', flex: 1, paddingRight: 16 },
     logo: { width: 62, height: 62, objectFit: 'contain', marginRight: 14 },
     firmText: { flex: 1 },
+    firmDetails: { marginTop: 4, paddingTop: 6, borderTopWidth: 0.5, borderTopColor: LINE },
+    detailLine: { color: MUTED, marginBottom: 2 },
     firmName: { fontSize: 15, fontFamily: 'Helvetica-Bold', color: brand, marginBottom: 4 },
     tagline: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: brand, letterSpacing: 1.6, textTransform: 'uppercase', marginBottom: 6 },
     proprietor: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: INK, marginBottom: 3 },
@@ -83,12 +85,12 @@ function makeStyles(brand: string) {
     // ---- notes / signature / terms ----
     notes: { marginTop: 12, borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 10 },
     text: { color: '#374151', marginBottom: 1 },
-    signWrap: { marginTop: 12, flexDirection: 'row', justifyContent: 'flex-end' },
+    signWrap: { marginTop: 28, flexDirection: 'row', justifyContent: 'flex-end' },
     signBlock: { width: 210, alignItems: 'center' },
     signImg: { height: 40, maxWidth: 170, objectFit: 'contain', marginVertical: 4 },
     signSpace: { height: 36 },
     signLine: { borderTopWidth: 1, borderTopColor: INK, width: 170, marginTop: 2, paddingTop: 3, alignItems: 'center' },
-    terms: { marginTop: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: LINE },
+    terms: { marginTop: 'auto', paddingTop: 8, borderTopWidth: 1, borderTopColor: LINE },
     // ---- footer ----
     footer: { position: 'absolute', bottom: 22, left: 36, right: 36, flexDirection: 'row', justifyContent: 'space-between', fontSize: 7.5, color: MUTED },
     band: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 12, backgroundColor: brand },
@@ -107,7 +109,6 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProp
   const firm: FirmSnapshot = inv.firm ?? settings;
   const t = inv.totals;
   const gst = inv.taxType !== 'NONE';
-  const intra = inv.taxType === 'INTRA';
   const contact = [firm.phone, firm.email, firm.website].filter(Boolean).join('  |  ');
   const ids = [firm.gstin ? `GSTIN: ${firm.gstin}` : '', firm.pan ? `PAN: ${firm.pan}` : ''].filter(Boolean).join('    ');
   const year = (inv.invoiceDate || '').slice(0, 4);
@@ -120,7 +121,6 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProp
     ['Invoice Date', fmtDate(inv.invoiceDate)],
     ['Due Date', fmtDate(inv.dueDate)],
   ];
-  if (gst) meta.push(['Reverse Charge', 'No']);
 
   return (
     <Document title={inv.number ?? 'Invoice'} author={firm.name} creator={firm.name}>
@@ -135,9 +135,11 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProp
               <Text style={s.firmName}>{firm.name}</Text>
               {firm.tagline ? <Text style={s.tagline}>{firm.tagline}</Text> : null}
               {firm.proprietor ? <Text style={s.proprietor}>{firm.proprietor}</Text> : null}
-              <Lines text={firm.address} style={s.muted} />
-              {contact ? <Text style={s.muted}>{contact}</Text> : null}
-              {ids ? <Text style={{ marginTop: 3 }}>{ids}</Text> : null}
+              <View style={s.firmDetails}>
+                <Lines text={firm.address} style={s.detailLine} />
+                {contact ? <Text style={[s.detailLine, { marginTop: 3 }]}>{contact}</Text> : null}
+                {ids ? <Text style={{ marginTop: 3 }}>{ids}</Text> : null}
+              </View>
             </View>
           </View>
           <View style={s.titleBlock}>
@@ -243,24 +245,12 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProp
               <Text>Total Amount</Text>
               <Text>{rs(gst ? t.taxablePaise : t.taxablePaise + t.reimbursementsPaise)}</Text>
             </View>
-            {gst &&
-              (intra ? (
-                <>
-                  <View style={s.tRow}>
-                    <Text>CGST @ {pct(inv.gstRateBp / 2)}</Text>
-                    <Text>{rs(t.cgstPaise)}</Text>
-                  </View>
-                  <View style={s.tRow}>
-                    <Text>SGST @ {pct(inv.gstRateBp / 2)}</Text>
-                    <Text>{rs(t.sgstPaise)}</Text>
-                  </View>
-                </>
-              ) : (
-                <View style={s.tRow}>
-                  <Text>IGST @ {pct(inv.gstRateBp)}</Text>
-                  <Text>{rs(t.igstPaise)}</Text>
-                </View>
-              ))}
+            {gst && (
+              <View style={s.tRow}>
+                <Text>GST @ {pct(inv.gstRateBp)}</Text>
+                <Text>{rs(t.taxPaise)}</Text>
+              </View>
+            )}
             {gst && t.reimbursementsPaise !== 0 && (
               <View style={s.tRow}>
                 <Text>Reimbursements</Text>
@@ -291,17 +281,19 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProp
           <Text style={{ marginTop: 8, color: '#dc2626' }}>Cancelled: {inv.cancelReason}</Text>
         ) : null}
 
-        {/* Signature */}
-        <View style={s.signWrap} wrap={false}>
-          <View style={s.signBlock}>
-            <Text style={s.bold}>For {firm.name}</Text>
-            {showSignature && settings.signatureDataUrl ? <Image src={settings.signatureDataUrl} style={s.signImg} /> : <View style={s.signSpace} />}
-            <View style={s.signLine}>
-              {signatory ? <Text style={s.bold}>{signatory}</Text> : null}
-              <Text style={s.muted}>Authorised Signatory</Text>
+        {/* Signature (only when "Show signature" is on for this invoice) */}
+        {showSignature && (
+          <View style={s.signWrap} wrap={false}>
+            <View style={s.signBlock}>
+              <Text style={s.bold}>For {firm.name}</Text>
+              {settings.signatureDataUrl ? <Image src={settings.signatureDataUrl} style={s.signImg} /> : <View style={s.signSpace} />}
+              <View style={s.signLine}>
+                {signatory ? <Text style={s.bold}>{signatory}</Text> : null}
+                <Text style={s.muted}>Authorised Signatory</Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
         {/* Terms at the bottom */}
         {inv.terms ? (

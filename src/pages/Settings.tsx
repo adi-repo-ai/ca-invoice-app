@@ -159,7 +159,7 @@ export default function Settings() {
           <Field label="Branch">
             <input value={s.bank.branch} onChange={(e) => setBank('branch', e.target.value)} />
           </Field>
-          <Field label="UPI ID">
+          <Field label="UPI ID" hint="Printed as a 'Scan to pay' QR code on unpaid invoices.">
             <input value={s.bank.upiId} onChange={(e) => setBank('upiId', e.target.value.trim())} />
           </Field>
         </div>

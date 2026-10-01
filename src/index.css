@@ -92,7 +92,26 @@
     @apply p-0 accent-[var(--brand)];
   }
   input[type="file"] {
-    @apply border-0 bg-transparent p-0 shadow-none;
+    @apply w-full cursor-pointer rounded-lg border border-dashed border-slate-300 bg-surface p-1.5 text-sm text-slate-600 shadow-none;
+  }
+  input[type="file"]::file-selector-button {
+    @apply mr-3 cursor-pointer rounded-md border-0 bg-[var(--brand)] px-3 py-1.5 text-sm font-medium text-white;
+  }
+  input[type="file"]:hover {
+    @apply border-[var(--brand)];
+  }
+  /* Hand cursor on everything clickable. */
+  a,
+  button:not(:disabled),
+  [role="button"],
+  [role="switch"],
+  summary,
+  select,
+  label:has(> input[type="checkbox"]),
+  input[type="checkbox"],
+  input[type="date"],
+  input[type="time"] {
+    cursor: pointer;
   }
   :focus-visible {
     outline: 2px solid var(--brand);
