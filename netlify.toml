@@ -1,0 +1,39 @@
+# Netlify configuration for the LKA invoice app.
+# In the Netlify UI set "Base directory" to `invoice-app` (this folder).
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  # firebase-admin and nodemailer are shipped as regular node_modules
+  # instead of being bundled by esbuild (they rely on dynamic requires).
+  external_node_modules = ["firebase-admin", "nodemailer"]
+
+# Local development: `npx netlify-cli dev` serves Vite + functions on :8888
+[dev]
+  command = "npm run dev"
+  targetPort = 5173
+  port = 8888
+  framework = "#custom"
+
+# Single-page app: every unknown path serves index.html (functions are
+# matched first because they live under /.netlify/functions/).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Robots-Tag = "noindex, nofollow"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
