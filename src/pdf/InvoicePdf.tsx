@@ -2,8 +2,8 @@
 // Uses the built-in Helvetica font (no font downloads); amounts are prefixed
 // with "Rs." because Helvetica has no ₹ glyph.
 //
-// When GST is switched off in Settings the invoice is a plain "INVOICE" with
-// no tax lines; when it is on it is a "TAX INVOICE" with CGST/SGST or IGST.
+// The title is always "INVOICE". When GST is switched off in Settings there are
+// no tax lines; when it is on a single "GST @ x%" line is shown.
 import { Document, Font, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import type { Style } from '@react-pdf/types';
 import { formatPaise } from '../lib/money';
@@ -146,7 +146,7 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProp
             </View>
           </View>
           <View style={s.titleBlock}>
-            <Text style={s.title}>{gst ? 'TAX INVOICE' : 'INVOICE'}</Text>
+            <Text style={s.title}>INVOICE</Text>
             {meta.map(([k, v]) => (
               <View key={k} style={s.metaRow}>
                 <Text style={s.metaLabel}>{k}</Text>
