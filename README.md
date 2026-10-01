@@ -1,6 +1,6 @@
 # LKA Invoices
 
-An internal GST invoicing app for **Lingeshwar Kaparthi & Associates** (Siddipet, Telangana). Staff create
+An internal GST invoicing app for **Lingesh K & Associates** (Siddipet, Telangana). Staff create
 GST-compliant invoices, download them as branded PDFs, and send them by email or WhatsApp.
 
 This README is the handover guide for whoever manages hosting and the domain. Sections 1–3 describe the app;
