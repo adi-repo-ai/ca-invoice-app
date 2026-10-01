@@ -26,8 +26,18 @@ export async function requireSignedIn(req: Request): Promise<DecodedIdToken> {
   if (!m) throw new HttpError(401, 'Missing Authorization bearer token');
   try {
     return await adminAuth().verifyIdToken(m[1], true);
-  } catch {
-    throw new HttpError(401, 'Invalid, expired or revoked ID token');
+  } catch (e) {
+    const code = (e as { code?: string }).code ?? '';
+    if (code === 'auth/user-disabled') throw new HttpError(401, 'This account has been disabled');
+    if (['auth/id-token-expired', 'auth/id-token-revoked', 'auth/argument-error'].includes(code)) {
+      throw new HttpError(401, 'Your sign-in has expired. Please sign out and sign in again.');
+    }
+    // Anything else is almost always server configuration (FIREBASE_* env vars).
+    console.error('ID token verification failed', code, (e as Error).message);
+    throw new HttpError(
+      500,
+      `Server could not verify your sign-in (${code || (e as Error).message}). Check the FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY variables in Netlify.`,
+    );
   }
 }
 

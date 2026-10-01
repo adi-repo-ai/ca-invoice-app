@@ -15,13 +15,18 @@ export function adminApp(): App {
   const existing = getApps()[0];
   if (existing) return existing;
 
-  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const projectId = process.env.FIREBASE_PROJECT_ID?.trim();
   if (!projectId) throw new Error('FIREBASE_PROJECT_ID is not set');
   if (usingEmulators()) return initializeApp({ projectId });
 
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL?.trim().replace(/^"(.*)"$/, '$1');
   // Netlify stores the key on one line with literal "\n" sequences.
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  // Tolerate a value pasted with surrounding quotes or a trailing comma
+  // (copied straight from the JSON file).
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.trim()
+    .replace(/,$/, '')
+    .replace(/^"(.*)"$/s, '$1')
+    .replace(/\\n/g, '\n');
   if (!clientEmail || !privateKey) {
     throw new Error('FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY are not set');
   }
