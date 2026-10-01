@@ -190,6 +190,10 @@ Index builds take a few minutes; watch them under **Firestore → Indexes**. Rep
 | `SMTP_PASS` | Functions, mark **secret** | mailbox password or **app password** (required by Gmail/Workspace when 2-step verification is on) |
 | `MAIL_FROM` | Functions | `Lingeshwar Kaparthi & Associates <accounts@calingeshwar.com>`. Must be an address the SMTP account may send as |
 
+   Mark **only** `FIREBASE_PRIVATE_KEY` and `SMTP_PASS` as secret. The `VITE_FIREBASE_*` values and
+   `FIREBASE_PROJECT_ID` are public by design (they end up in the browser bundle); `netlify.toml` excludes them
+   from Netlify's secrets scanning via `SECRETS_SCAN_OMIT_KEYS`. If any of them is marked secret the build fails.
+
    **Never** set `VITE_USE_FIREBASE_EMULATORS`, `FIREBASE_AUTH_EMULATOR_HOST` or `FIRESTORE_EMULATOR_HOST`
    in Netlify. They are for local development only.
 
