@@ -3,6 +3,8 @@
 An internal GST invoicing app for **Lingesh K & Associates** (Siddipet, Telangana). Staff create
 GST-compliant invoices, download them as branded PDFs, and send them by email or WhatsApp.
 
+A plain-language architecture and file guide is in [`docs/LKA-Invoices-Architecture-Guide.pdf`](docs/LKA-Invoices-Architecture-Guide.pdf).
+
 This README is the handover guide for whoever manages hosting and the domain. Sections 1–3 describe the app;
 section 4 is the production setup checklist; section 5 covers day-to-day operations.
 
