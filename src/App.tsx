@@ -1,8 +1,10 @@
-import { lazy, Suspense, type ReactNode } from 'react';
+import { lazy, Suspense, useState, type FormEvent, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { logout, useAuth } from './auth';
 import { Layout } from './components/Layout';
-import { Button, Loading } from './components/ui';
+import { callFunction } from './api';
+import { Alert, Button, Loading, errorMessage } from './components/ui';
+import { auth } from './firebase';
 import Login from './pages/Login';
 import { SettingsProvider } from './settings-context';
 
@@ -31,10 +33,43 @@ function RequireAuth({ children }: { children: ReactNode }) {
           Your account ({user.email}) has not been given a role. Ask an administrator to grant access, then sign in again.
         </p>
         <Button onClick={logout}>Sign out</Button>
+        <SetupCodeForm />
       </div>
     );
   }
   return <SettingsProvider>{children}</SettingsProvider>;
+}
+
+/** First-time setup: the first user becomes ADMIN with the SETUP_CODE from Netlify. */
+function SetupCodeForm() {
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      await callFunction('claim-admin', { code });
+      await auth.currentUser?.getIdToken(true); // pick up the new ADMIN role
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form onSubmit={submit} className="space-y-2 border-t border-slate-200 pt-4 text-left">
+      <p className="text-xs text-slate-500">First-time setup only: enter the setup code to become the administrator.</p>
+      {error && <Alert>{error}</Alert>}
+      <div className="flex gap-2">
+        <input type="password" autoComplete="off" required placeholder="Setup code" className="min-w-0 flex-1" value={code} onChange={(e) => setCode(e.target.value)} />
+        <Button type="submit" variant="secondary" busy={busy}>
+          Submit
+        </Button>
+      </div>
+    </form>
+  );
 }
 
 function AdminOnly({ children }: { children: ReactNode }) {

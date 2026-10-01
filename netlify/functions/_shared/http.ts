@@ -20,19 +20,22 @@ export function json(status: number, body: unknown): Response {
   });
 }
 
-/**
- * Verify the caller's Firebase ID token (including revocation / disabled
- * status) and require one of the given roles from the `role` custom claim.
- */
-export async function requireRole(req: Request, roles: Role[]): Promise<DecodedIdToken> {
+/** Verify the caller's Firebase ID token (including revocation / disabled status). */
+export async function requireSignedIn(req: Request): Promise<DecodedIdToken> {
   const m = /^Bearer\s+(.+)$/i.exec(req.headers.get('authorization') ?? '');
   if (!m) throw new HttpError(401, 'Missing Authorization bearer token');
-  let token: DecodedIdToken;
   try {
-    token = await adminAuth().verifyIdToken(m[1], true);
+    return await adminAuth().verifyIdToken(m[1], true);
   } catch {
     throw new HttpError(401, 'Invalid, expired or revoked ID token');
   }
+}
+
+/**
+ * Verify the caller's Firebase ID token and require one of the given roles from the `role` custom claim.
+ */
+export async function requireRole(req: Request, roles: Role[]): Promise<DecodedIdToken> {
+  const token = await requireSignedIn(req);
   if (!roles.includes(token.role as Role)) {
     throw new HttpError(403, 'You do not have permission for this action');
   }

@@ -189,6 +189,7 @@ Index builds take a few minutes; watch them under **Firestore → Indexes**. Rep
 | `SMTP_USER` | Functions | mailbox login, e.g. `accounts@calingeshwar.com` |
 | `SMTP_PASS` | Functions, mark **secret** | mailbox password or **app password** (required by Gmail/Workspace when 2-step verification is on) |
 | `MAIL_FROM` | Functions | `Lingeshwar Kaparthi & Associates <accounts@calingeshwar.com>`. Must be an address the SMTP account may send as |
+| `SETUP_CODE` (optional, temporary) | Functions, mark **secret** | one-time code to become the first ADMIN without a terminal (4.8 Option A); delete after use |
 
    Mark **only** `FIREBASE_PRIVATE_KEY` and `SMTP_PASS` as secret. The `VITE_FIREBASE_*` values and
    `FIREBASE_PROJECT_ID` are public by design (they end up in the browser bundle); `netlify.toml` excludes them
@@ -213,6 +214,19 @@ For email deliverability, make sure `calingeshwar.com` has SPF/DKIM set up for y
 mail provider's admin console shows the records).
 
 ### 4.8 Create the first ADMIN (one time)
+
+There are two ways to do this. **Option A** needs no terminal.
+
+**Option A: setup code (browser only)**
+
+1. Netlify → **Environment variables** → add `SETUP_CODE` (scope Functions, mark **secret**). Use a long random
+   value of at least 12 characters that only you know. Then trigger a redeploy.
+2. Firebase console → **Authentication → Users → Add user** → your email and a password.
+3. Open the app, sign in, and on the "No access" page enter the setup code → **Submit**. You are now ADMIN.
+4. **Delete `SETUP_CODE` from Netlify.** The function is single-use anyway: it refuses once an ADMIN exists or
+   once it has been used.
+
+**Option B: `create-admin` script**
 
 Run this on a trusted computer. It talks to the **live** project, so double-check the project id it prints.
 
