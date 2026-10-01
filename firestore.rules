@@ -253,7 +253,8 @@ service cloud.firestore {
       allow update: if isAdmin()
         && resource.data.status == 'ISSUED' && request.resource.data.status == 'CANCELLED'
         && isCancel(resource.data, request.resource.data);
-      allow delete: if false;
+      // Drafts can be deleted by any staff member; numbered invoices only by an ADMIN.
+      allow delete: if isAdmin() || (isStaff() && resource.data.status == 'DRAFT');
     }
 
     // ---------- per-FY invoice counters ----------
@@ -285,7 +286,7 @@ service cloud.firestore {
       allow create: if isStaff()
         && request.resource.data.keys().hasOnly(['invoiceId', 'invoiceNumber', 'action', 'uid',
             'userEmail', 'at', 'details'])
-        && request.resource.data.action in ['CREATE', 'EDIT', 'ISSUE', 'PAYMENT', 'CANCEL', 'SEND_EMAIL', 'SEND_WHATSAPP']
+        && request.resource.data.action in ['CREATE', 'EDIT', 'ISSUE', 'PAYMENT', 'CANCEL', 'DELETE', 'SEND_EMAIL', 'SEND_WHATSAPP']
         && request.resource.data.invoiceId is string
         && request.resource.data.uid == uid()
         && request.resource.data.userEmail == request.auth.token.email

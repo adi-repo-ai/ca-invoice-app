@@ -2,10 +2,12 @@ import type { DocumentSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ClientPicker } from '../components/ClientPicker';
 import { InvoiceTable } from '../components/InvoiceTable';
-import { EyeIcon } from '../components/icons';
+import { useAuth, useActor } from '../auth';
+import { useDialog } from '../components/Dialog';
+import { EyeIcon, EyeOffIcon, TrashIcon } from '../components/icons';
 import { Alert, Button, Card, Field, LinkButton, Loading, PageHeader, errorMessage } from '../components/ui';
 import type { ClientRow } from '../data/clients';
-import { countInvoices, listAllInvoices, listInvoices, type InvoiceFilter, type InvoiceRow } from '../data/invoices';
+import { countInvoices, deleteInvoices, listAllInvoices, listInvoices, type InvoiceFilter, type InvoiceRow } from '../data/invoices';
 import { db } from '../firebase';
 import { paiseToDecimal, toCsv } from '../lib/csv';
 import { todayIST } from '../lib/fy';
@@ -35,9 +37,12 @@ const TABS: { value: InvoiceStatus | ''; label: string; active: string }[] = [
   { value: 'PAID', label: 'Paid', active: 'bg-green-600 text-white border-green-600' },
   { value: 'CANCELLED', label: 'Cancelled', active: 'bg-red-600 text-white border-red-600' },
 ];
-const HISTORY_KEY = 'invoiceHistoryHidden';
+const AMOUNTS_KEY = 'invoiceAmountsHidden';
 
 export default function Invoices() {
+  const { role } = useAuth();
+  const actor = useActor();
+  const dialog = useDialog();
   const [client, setClient] = useState<ClientRow | null>(null);
   const [status, setStatus] = useState<InvoiceStatus | ''>('');
   const [from, setFrom] = useState('');
@@ -47,19 +52,21 @@ export default function Invoices() {
   const [hasMore, setHasMore] = useState(false);
   const [counts, setCounts] = useState<Record<string, number | null>>({});
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [reloadTick, setReloadTick] = useState(0);
   const [busy, setBusy] = useState('');
   const [hidden, setHidden] = useState(() => {
     try {
-      return localStorage.getItem(HISTORY_KEY) === '1';
+      return localStorage.getItem(AMOUNTS_KEY) === '1';
     } catch {
       return false;
     }
   });
 
-  function toggleHistory() {
+  function toggleAmounts() {
     setHidden((h) => {
       try {
-        localStorage.setItem(HISTORY_KEY, h ? '0' : '1');
+        localStorage.setItem(AMOUNTS_KEY, h ? '0' : '1');
       } catch {
         /* ignore */
       }
@@ -82,7 +89,7 @@ export default function Invoices() {
         setHasMore(r.hasMore);
       })
       .catch((e) => setError(errorMessage(e)));
-  }, [key]);
+  }, [key, reloadTick]);
 
   useEffect(() => {
     const base = JSON.parse(countKey) as InvoiceFilter;
@@ -92,7 +99,65 @@ export default function Invoices() {
         .then((n) => setCounts((c) => ({ ...c, [t.value]: n })))
         .catch(() => setCounts((c) => ({ ...c, [t.value]: null })));
     }
-  }, [countKey]);
+  }, [countKey, reloadTick]);
+
+  const isAdmin = role === 'ADMIN';
+  const canDelete = (r: InvoiceRow) => isAdmin || r.status === 'DRAFT';
+  const numbered = (n: number) => (n === 1 ? '1 invoice' : `${n} invoices`);
+
+  async function removeOne(r: InvoiceRow) {
+    const ok = await dialog.confirm({
+      title: `Delete ${r.number ?? 'this draft'}?`,
+      message:
+        r.status === 'DRAFT'
+          ? `The draft for ${r.client.name} will be permanently deleted.`
+          : `Invoice ${r.number} for ${r.client.name} will be permanently deleted. Its number will not be reused. This cannot be undone.`,
+      confirmText: 'Delete invoice',
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy('delete');
+    setError('');
+    try {
+      await deleteInvoices(db, actor, [r]);
+      setNotice(`${r.number ?? 'Draft'} deleted.`);
+      setReloadTick((n) => n + 1);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function removeAll() {
+    setBusy('deleteAll');
+    setError('');
+    try {
+      const all = (await listAllInvoices(db, filter)).filter(canDelete);
+      if (all.length === 0) {
+        setNotice('Nothing to delete.');
+        return;
+      }
+      const typed = await dialog.prompt({
+        title: `Delete ${numbered(all.length)}?`,
+        message: `This permanently deletes ${numbered(all.length)} shown by the current selection${status ? ` (${label})` : ''}${extraFilters ? ' and filters' : ''}. Invoice numbers are not reused. This cannot be undone. Type DELETE to confirm.`,
+        label: 'Type DELETE',
+        confirmText: 'Delete all',
+        danger: true,
+      });
+      if (typed?.trim().toUpperCase() !== 'DELETE') {
+        if (typed !== null) setError('Not deleted: you must type DELETE to confirm.');
+        return;
+      }
+      await deleteInvoices(db, actor, all);
+      setNotice(`${numbered(all.length)} deleted.`);
+      setReloadTick((n) => n + 1);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy('');
+    }
+  }
 
   async function more() {
     setBusy('more');
@@ -142,6 +207,7 @@ export default function Invoices() {
         actions={<LinkButton to="/invoices/new">+ New invoice</LinkButton>}
       />
       {error && <Alert>{error}</Alert>}
+      {notice && <Alert kind="success">{notice}</Alert>}
       <Card>
         {/* Status tabs: always visible, with counts */}
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter by status">
@@ -205,31 +271,35 @@ export default function Invoices() {
           </div>
         </div>
 
-        {/* History header with show / hide */}
+        {/* List header: hide amounts, delete all */}
         <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
           <h2 className="text-base font-semibold">
             {label === 'All' ? 'All invoices' : `${label} invoices`}
             {shown != null && <span className="ml-2 text-sm font-normal text-slate-500">({shown})</span>}
           </h2>
-          <Button variant="secondary" className="gap-2" onClick={toggleHistory} aria-expanded={!hidden}>
-            <EyeIcon size={16} />
-            {hidden ? 'Show history' : 'Hide history'}
-          </Button>
-        </div>
-        {hidden ? (
-          <p className="py-6 text-center text-sm text-slate-500">Invoice history is hidden. Click “Show history” to see it.</p>
-        ) : (
-          <div className="mt-2">
-            {!rows ? <Loading /> : <InvoiceTable rows={rows} pdfActions />}
-            {hasMore && (
-              <div className="mt-3 text-center">
-                <Button variant="secondary" busy={busy === 'more'} onClick={more}>
-                  Load more
-                </Button>
-              </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" className="gap-2" onClick={toggleAmounts} aria-pressed={hidden}>
+              {hidden ? <EyeIcon size={16} /> : <EyeOffIcon size={16} />}
+              {hidden ? 'Show amounts' : 'Hide amounts'}
+            </Button>
+            {(isAdmin || status === 'DRAFT') && (shown ?? 0) > 0 && (
+              <Button variant="secondary" className="gap-2 !border-red-300 !text-red-600 hover:!bg-red-50" busy={busy === 'deleteAll'} onClick={removeAll}>
+                <TrashIcon size={16} />
+                {status ? `Delete all ${label.toLowerCase()}` : 'Delete all'}
+              </Button>
             )}
           </div>
-        )}
+        </div>
+        <div className="mt-2">
+          {!rows ? <Loading /> : <InvoiceTable rows={rows} pdfActions hideAmounts={hidden} onDelete={removeOne} canDelete={canDelete} />}
+          {hasMore && (
+            <div className="mt-3 text-center">
+              <Button variant="secondary" busy={busy === 'more'} onClick={more}>
+                Load more
+              </Button>
+            </div>
+          )}
+        </div>
       </Card>
     </div>
   );

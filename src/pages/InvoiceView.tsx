@@ -1,12 +1,12 @@
 import { writeBatch } from 'firebase/firestore';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useActor, useAuth } from '../auth';
 import { Alert, Button, Card, Field, LinkButton, Loading, Money, PageHeader, StatusBadge, errorMessage } from '../components/ui';
-import { DownloadIcon, EyeIcon, MailIcon, WhatsAppIcon } from '../components/icons';
+import { DownloadIcon, EyeIcon, MailIcon, TrashIcon, WhatsAppIcon } from '../components/icons';
 import { useDialog } from '../components/Dialog';
 import { appendAudit, listInvoiceAudit, type AuditEntry } from '../data/audit';
-import { cancelInvoice, getInvoice, issueInvoice, recordPayment, type InvoiceRow } from '../data/invoices';
+import { cancelInvoice, deleteInvoices, getInvoice, issueInvoice, recordPayment, type InvoiceRow } from '../data/invoices';
 import { db } from '../firebase';
 import { todayIST } from '../lib/fy';
 import { formatPaise, paiseToInput, parseRupeesToPaise } from '../lib/money';
@@ -36,6 +36,7 @@ export default function InvoiceView() {
   const { id } = useParams();
   const { role } = useAuth();
   const actor = useActor();
+  const navigate = useNavigate();
   const dialog = useDialog();
   const { settings, saved } = useSettings();
   const [inv, setInv] = useState<InvoiceRow | null>(null);
@@ -82,6 +83,28 @@ export default function InvoiceView() {
   const gst = inv.taxType !== 'NONE';
   const issuedLike = inv.status !== 'DRAFT';
   const wa = normaliseWhatsapp(inv.client.whatsapp);
+  const canDelete = role === 'ADMIN' || inv.status === 'DRAFT';
+
+  async function remove() {
+    const ok = await dialog.confirm({
+      title: `Delete ${inv!.number ?? 'this draft'}?`,
+      message:
+        inv!.status === 'DRAFT'
+          ? 'This draft will be permanently deleted.'
+          : `Invoice ${inv!.number} will be permanently deleted. Its number will not be reused. This cannot be undone.`,
+      confirmText: 'Delete invoice',
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy('delete');
+    try {
+      await deleteInvoices(db, actor, [inv!]);
+      navigate('/invoices', { replace: true });
+    } catch (e) {
+      setMsg({ kind: 'error', text: errorMessage(e) });
+      setBusy('');
+    }
+  }
 
   /**
    * Drafts have no invoice number yet, so the PDF / share buttons first create
@@ -261,18 +284,25 @@ export default function InvoiceView() {
               </a>
             </p>
           )}
-        {inv.status === 'ISSUED' && (
-            <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+        {(inv.status === 'ISSUED' || canDelete) && (
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+            {inv.status === 'ISSUED' && (
               <Button variant="ghost" onClick={() => setPanel(panel === 'payment' ? '' : 'payment')}>
                 ✓ Mark as paid
               </Button>
-              {role === 'ADMIN' && (
-                <Button variant="ghost" className="!text-red-600" onClick={() => setPanel(panel === 'cancel' ? '' : 'cancel')}>
-                  Cancel invoice
-                </Button>
-              )}
-            </div>
-          )}
+            )}
+            {inv.status === 'ISSUED' && role === 'ADMIN' && (
+              <Button variant="ghost" className="!text-red-600" onClick={() => setPanel(panel === 'cancel' ? '' : 'cancel')}>
+                Cancel invoice
+              </Button>
+            )}
+            {canDelete && (
+              <Button variant="ghost" className="gap-2 !text-red-600 sm:ml-auto" busy={busy === 'delete'} onClick={remove}>
+                <TrashIcon size={16} /> Delete invoice
+              </Button>
+            )}
+          </div>
+        )}
       </Card>
 
       {panel === 'payment' && (

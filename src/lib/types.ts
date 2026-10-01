@@ -146,5 +146,6 @@ export type AuditAction =
   | 'ISSUE'
   | 'PAYMENT'
   | 'CANCEL'
+  | 'DELETE'
   | 'SEND_EMAIL'
   | 'SEND_WHATSAPP';

@@ -282,6 +282,26 @@ export async function cancelInvoice(
   await batch.commit();
 }
 
+/**
+ * Permanently delete invoices (an audit entry is kept for each). Drafts can be
+ * deleted by anyone; numbered invoices only by an ADMIN (enforced by the rules).
+ * Numbers are never reused: the next invoice continues the sequence.
+ */
+export async function deleteInvoices(db: Firestore, actor: Actor, rows: InvoiceRow[]): Promise<void> {
+  for (let i = 0; i < rows.length; i += 200) {
+    const batch = writeBatch(db);
+    for (const r of rows.slice(i, i + 200)) {
+      batch.delete(doc(db, 'invoices', r.id));
+      appendAudit(db, batch, actor, r.id, r.number ?? null, 'DELETE', {
+        status: r.status,
+        client: r.client.name,
+        grandTotalPaise: r.totals.grandTotalPaise,
+      });
+    }
+    await batch.commit();
+  }
+}
+
 export async function getInvoice(db: Firestore, id: string): Promise<InvoiceRow | null> {
   const snap = await getDoc(doc(db, 'invoices', id));
   return snap.exists() ? { id: snap.id, ...(snap.data() as Invoice) } : null;

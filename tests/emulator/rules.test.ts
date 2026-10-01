@@ -15,6 +15,7 @@ import { createClient } from '../../src/data/clients';
 import {
   cancelInvoice,
   createDraft,
+  deleteInvoices,
   getInvoice,
   issueInvoice,
   recordPayment,
@@ -190,6 +191,21 @@ describe('invoices', () => {
     await assertFails(updateDoc(ref, { status: 'DRAFT', updatedAt: serverTimestamp(), updatedBy: STAFF.uid }));
     await assertFails(updateDraft(db, STAFF, inv.id, draftInput(), SETTINGS));
     await assertFails(deleteDoc(ref));
+  });
+
+  it('deleting: staff can delete drafts, only ADMIN can delete numbered invoices', async () => {
+    const staffDb = fs(asStaff(env));
+    const draftId = await createDraft(staffDb, STAFF, draftInput('ts'), SETTINGS);
+    const draft = (await getInvoice(staffDb, draftId))!;
+    await assertFails(deleteDoc(doc(fs(asNoRole(env)), 'invoices', draftId)));
+    await assertSucceeds(deleteInvoices(staffDb, STAFF, [draft]));
+    expect(await getInvoice(staffDb, draftId)).toBeNull();
+
+    const issued = await issuedInvoice();
+    await assertFails(deleteInvoices(staffDb, STAFF, [issued]));
+    const adminDb = fs(asAdmin(env));
+    await assertSucceeds(deleteInvoices(adminDb, ADMIN, [issued]));
+    expect(await getInvoice(adminDb, issued.id)).toBeNull();
   });
 
   it('STAFF can record payment; payment cannot smuggle other changes', async () => {

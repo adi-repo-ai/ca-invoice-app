@@ -93,7 +93,7 @@ function makeStyles(brand: string) {
     signImg: { height: 40, maxWidth: 170, objectFit: 'contain', marginVertical: 4 },
     signSpace: { height: 36 },
     signLine: { borderTopWidth: 1, borderTopColor: INK, width: 170, marginTop: 2, paddingTop: 3, alignItems: 'center' },
-    terms: { marginTop: 14, paddingTop: 8, borderTopWidth: 1, borderTopColor: LINE },
+    terms: { marginTop: 28, paddingTop: 10, borderTopWidth: 1, borderTopColor: LINE },
     // ---- footer ----
     footer: { position: 'absolute', bottom: 22, left: 36, right: 36, flexDirection: 'row', justifyContent: 'space-between', fontSize: 7.5, color: MUTED },
     band: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 12, backgroundColor: brand },
@@ -268,13 +268,13 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProp
                 <Text style={s.boxTitle}>Payment details</Text>
                 <View style={s.payRow}>
                   <View style={{ flex: 1 }}>
-                    {firm.bank.accountName ? <Text>A/c name: {firm.bank.accountName}</Text> : null}
-                    {firm.bank.accountNumber ? <Text>A/c no.: {firm.bank.accountNumber}</Text> : null}
-                    {firm.bank.ifsc ? <Text>IFSC: {firm.bank.ifsc}</Text> : null}
-                    {firm.bank.branch ? <Text>Branch: {firm.bank.branch}</Text> : null}
+                    {firm.bank.accountName ? <Text style={s.detailLine}>A/c name: {firm.bank.accountName}</Text> : null}
+                    {firm.bank.accountNumber ? <Text style={s.detailLine}>A/c no.: {firm.bank.accountNumber}</Text> : null}
+                    {firm.bank.ifsc ? <Text style={s.detailLine}>IFSC: {firm.bank.ifsc}</Text> : null}
+                    {firm.bank.branch ? <Text style={s.detailLine}>Branch: {firm.bank.branch}</Text> : null}
                     {firm.bank.upiId ? (
-                      <Text style={{ marginTop: 3 }}>
-                        UPI: <Text style={s.bold}>{firm.bank.upiId}</Text>
+                      <Text style={[s.detailLine, { marginTop: 3 }]}>
+                        UPI: <Text style={[s.bold, { color: INK }]}>{firm.bank.upiId}</Text>
                       </Text>
                     ) : null}
                   </View>
@@ -306,7 +306,7 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProp
           {inv.terms ? (
             <View style={s.terms}>
               <Text style={s.boxTitle}>Terms &amp; conditions</Text>
-              <Lines text={inv.terms} style={s.text} />
+              <Lines text={inv.terms} style={s.detailLine} />
             </View>
           ) : null}
         </View>
