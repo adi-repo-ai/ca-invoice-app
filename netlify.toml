@@ -1,5 +1,5 @@
 # Netlify configuration for the LKA invoice app.
-# In the Netlify UI set "Base directory" to `invoice-app` (this folder).
+# The app lives at the repository root, so leave "Base directory" empty in Netlify.
 
 [build]
   command = "npm run build"
