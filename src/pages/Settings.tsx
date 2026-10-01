@@ -1,4 +1,7 @@
+import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState, type FormEvent } from 'react';
+import { callFunction } from '../api';
+import { useDialog } from '../components/Dialog';
 import { SettingsTabs } from '../components/SettingsTabs';
 import { useAuth } from '../auth';
 import { Alert, Button, Card, Field, PageHeader, Switch, errorMessage } from '../components/ui';
@@ -13,6 +16,74 @@ import { HEX_COLOR_RE, IFSC_RE, SAC_RE, isValidEmail, isValidGstin, isValidPan }
 import { useSettings } from '../settings-context';
 
 type Errors = Partial<Record<string, string>>;
+
+/** Shows this year's last invoice number and lets an ADMIN restart at 0001 once no numbered invoice is left. */
+function NumberingCard({ prefix }: { prefix: string }) {
+  const dialog = useDialog();
+  const fy = fyForDate(todayIST());
+  const [last, setLast] = useState<number | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
+
+  const load = () =>
+    getDoc(doc(db, 'counters', fy))
+      .then((d) => setLast(d.exists() ? (d.data().last as number) : 0))
+      .catch(() => setLast(null));
+  useEffect(() => {
+    load();
+  }, [fy]);
+
+  async function reset() {
+    const ok = await dialog.confirm({
+      title: 'Restart numbering at 0001?',
+      message: `The next invoice will be ${formatInvoiceNumber(prefix, fy, 1)}. This only works once every numbered invoice from FY ${fy} has been deleted (drafts are fine), so numbers are never duplicated.`,
+      confirmText: 'Restart at 0001',
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      await callFunction('reset-numbering', {});
+      setMsg({ kind: 'success', text: `Numbering restarted. The next invoice will be ${formatInvoiceNumber(prefix, fy, 1)}.` });
+      await load();
+    } catch (e) {
+      setMsg({ kind: 'error', text: errorMessage(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Invoice numbering">
+      {msg && (
+        <div className="mb-3">
+          <Alert kind={msg.kind}>{msg.text}</Alert>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm">
+          <div>
+            Financial year <span className="font-semibold">{fy}</span>
+          </div>
+          <div className="text-slate-600">
+            {last === undefined
+              ? 'Loading…'
+              : last === null
+                ? 'Could not read the current number.'
+                : last === 0
+                  ? `No invoice issued yet. The next one will be ${formatInvoiceNumber(prefix, fy, 1)}.`
+                  : `Last issued: ${formatInvoiceNumber(prefix, fy, last)}. Next: ${formatInvoiceNumber(prefix, fy, last + 1)}.`}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">Use this after deleting test invoices, so your real invoices start from 0001.</p>
+        </div>
+        <Button type="button" variant="secondary" className="!border-red-300 !text-red-600" busy={busy} disabled={!last} onClick={reset}>
+          Restart at 0001
+        </Button>
+      </div>
+    </Card>
+  );
+}
 
 function validate(s: FirmSettings, gstRate: string): Errors {
   const e: Errors = {};
@@ -171,8 +242,8 @@ export default function Settings() {
             <div className="font-medium">Charge GST on invoices</div>
             <p className="text-sm text-slate-600">
               {s.chargeGst
-                ? 'ON: invoices are titled "Tax Invoice" and show CGST + SGST (same state) or IGST (other state).'
-                : 'OFF: invoices are titled "Invoice" with no GST. Turn this on only if the firm is GST-registered and charges GST.'}
+                ? 'ON: GST is added to every invoice (shown as one "GST @ rate" line on the PDF).'
+                : 'OFF: invoices have no GST. Turn this on only if the firm is GST-registered and charges GST.'}
             </p>
           </div>
           <Switch checked={s.chargeGst} onChange={(v) => set('chargeGst', v)} label="Charge GST" />
@@ -257,6 +328,8 @@ export default function Settings() {
           </div>
         </div>
       </Card>
+
+      <NumberingCard prefix={s.invoicePrefix} />
 
       <Card title="Signature (printed on invoices)">
         <div className="grid gap-6 sm:grid-cols-2">
