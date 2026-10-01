@@ -21,6 +21,8 @@ export interface BankDetails {
 
 export interface FirmSettings {
   name: string;
+  tagline: string; // e.g. "Chartered Accountants" (optional)
+  proprietor: string; // e.g. "CA Lingeshwar, ACA" (optional)
   address: string;
   stateName: string;
   stateCode: string; // GST state code of the firm, e.g. "36" (Telangana)
@@ -80,6 +82,8 @@ export type ClientSnapshot = Omit<Client, 'nameLower'>;
 
 export interface FirmSnapshot {
   name: string;
+  tagline?: string;
+  proprietor?: string;
   address: string;
   stateName: string;
   stateCode: string;

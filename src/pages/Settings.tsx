@@ -76,7 +76,7 @@ export default function Settings() {
     }
   }
 
-  const text = (k: 'name' | 'phone' | 'email' | 'website', label: string) => (
+  const text = (k: 'name' | 'tagline' | 'proprietor' | 'phone' | 'email' | 'website', label: string) => (
     <Field label={label} error={errors[k]}>
       <input value={s[k]} onChange={(e) => set(k, e.target.value)} />
     </Field>
@@ -91,6 +91,8 @@ export default function Settings() {
       <Card title="Firm details">
         <div className="grid gap-4 sm:grid-cols-2">
           {text('name', 'Firm name')}
+          {text('tagline', 'Tagline (optional, e.g. Chartered Accountants)')}
+          {text('proprietor', 'Proprietor / partner line (optional, e.g. CA Lingeshwar, ACA)')}
           {text('phone', 'Phone')}
           {text('email', 'Email')}
           {text('website', 'Website')}

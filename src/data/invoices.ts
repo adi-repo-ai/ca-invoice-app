@@ -60,6 +60,8 @@ export function clientSnapshot(c: Client): ClientSnapshot {
 export function firmSnapshot(s: FirmSettings): FirmSnapshot {
   return {
     name: s.name,
+    tagline: s.tagline,
+    proprietor: s.proprietor,
     address: s.address,
     stateName: s.stateName,
     stateCode: s.stateCode,

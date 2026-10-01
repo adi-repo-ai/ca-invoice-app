@@ -224,10 +224,10 @@ the local `.env`.
 ### 4.9 First sign-in
 
 1. Open `https://invoices.calingeshwar.com` and sign in as the ADMIN.
-2. **Settings**: firm name, address, phone, email, website, GSTIN, PAN, bank details, UPI ID, default terms,
+2. **Settings**: firm name, tagline and proprietor line (optional, printed under the name in the PDF header), address, phone, email, website, GSTIN, PAN, bank details, UPI ID, default terms,
    GST rate (18%), SAC codes, invoice prefix (`LKA`), payment due days, brand colour and logo → **Save**.
    Invoices can't be issued until settings are saved.
-   * The default brand colour is `#1a3a5c` (navy). Change it here to the firm's exact brand blue.
+   * The default brand colour is `#1a3a5c` (navy). The blue on the firm's visiting card is `#0c629b`.
 3. **Users → Add a user** for each staff member (role STAFF). Give them their initial password privately.
 
 ---

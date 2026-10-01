@@ -100,6 +100,10 @@ describe('firm settings', () => {
     await assertFails(saveSettings(db, ADMIN.uid, { ...SETTINGS, logoDataUrl: big }));
     await assertFails(saveSettings(db, ADMIN.uid, { ...SETTINGS, brandColor: 'blue' }));
     await assertFails(saveSettings(db, ADMIN.uid, { ...SETTINGS, invoicePrefix: 'LKAX' }));
+    await assertFails(saveSettings(db, ADMIN.uid, { ...SETTINGS, tagline: 'x'.repeat(101) }));
+    await assertSucceeds(
+      saveSettings(db, ADMIN.uid, { ...SETTINGS, tagline: 'Chartered Accountants', proprietor: 'CA Lingeshwar, ACA' }),
+    );
     await assertSucceeds(
       saveSettings(db, ADMIN.uid, { ...SETTINGS, logoDataUrl: 'data:image/png;base64,iVBORw0KGgo=' }),
     );

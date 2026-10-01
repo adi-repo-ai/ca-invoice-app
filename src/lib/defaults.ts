@@ -7,6 +7,8 @@ export const DEFAULT_BRAND_COLOR = '#1a3a5c';
 
 export const DEFAULT_SETTINGS: FirmSettings = {
   name: '',
+  tagline: '',
+  proprietor: '',
   address: '',
   stateName: 'Telangana',
   stateCode: '36',

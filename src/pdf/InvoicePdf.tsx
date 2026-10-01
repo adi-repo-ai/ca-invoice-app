@@ -14,7 +14,9 @@ function makeStyles(brand: string) {
     header: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 2, borderBottomColor: brand, paddingBottom: 10 },
     firmBlock: { flexDirection: 'row', maxWidth: '62%' },
     logo: { width: 70, maxHeight: 70, objectFit: 'contain', marginRight: 10 },
-    firmName: { fontSize: 15, fontFamily: 'Helvetica-Bold', color: brand, marginBottom: 3 },
+    firmName: { fontSize: 15, fontFamily: 'Helvetica-Bold', color: brand, marginBottom: 1 },
+    tagline: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: '#374151', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 2 },
+    proprietor: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: '#374151', marginBottom: 3 },
     muted: { color: '#4b5563' },
     titleBlock: { alignItems: 'flex-end' },
     title: { fontSize: 16, fontFamily: 'Helvetica-Bold', color: brand, marginBottom: 6, letterSpacing: 1 },
@@ -40,7 +42,7 @@ function makeStyles(brand: string) {
     totals: { width: 220 },
     tRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2, paddingHorizontal: 6 },
     grand: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, paddingHorizontal: 6, marginTop: 3, backgroundColor: brand, color: '#ffffff', fontFamily: 'Helvetica-Bold', fontSize: 11 },
-    terms: { marginTop: 4, color: '#374151', lineHeight: 1.4 },
+    terms: { color: '#374151', lineHeight: 1.35 },
     footer: { position: 'absolute', bottom: 22, left: 32, right: 32, borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 6, flexDirection: 'row', justifyContent: 'space-between', fontSize: 7.5, color: '#6b7280' },
     watermark: { position: 'absolute', top: 330, left: 60, fontSize: 80, color: '#dc2626', opacity: 0.12, transform: 'rotate(-30deg)', fontFamily: 'Helvetica-Bold' },
   });
@@ -68,6 +70,8 @@ export function InvoicePdf({ invoice: inv, settings }: InvoicePdfProps) {
             {settings.logoDataUrl && <Image src={settings.logoDataUrl} style={s.logo} />}
             <View>
               <Text style={s.firmName}>{firm.name}</Text>
+              {firm.tagline ? <Text style={s.tagline}>{firm.tagline}</Text> : null}
+              {firm.proprietor ? <Text style={s.proprietor}>{firm.proprietor}</Text> : null}
               <Text style={s.muted}>{firm.address}</Text>
               {contact ? <Text style={s.muted}>{contact}</Text> : null}
               <Text style={{ marginTop: 3 }}>
@@ -210,7 +214,11 @@ export function InvoicePdf({ invoice: inv, settings }: InvoicePdfProps) {
           </View>
           <View style={[s.box, { flex: 1.4 }]}>
             <Text style={s.boxTitle}>Terms</Text>
-            <Text style={s.terms}>{inv.terms}</Text>
+            {inv.terms.split('\n').map((line, i) => (
+              <Text key={i} style={s.terms}>
+                {line || ' '}
+              </Text>
+            ))}
             {inv.status === 'CANCELLED' && inv.cancelReason ? (
               <Text style={{ marginTop: 4, color: '#dc2626' }}>Cancelled: {inv.cancelReason}</Text>
             ) : null}
