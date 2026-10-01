@@ -135,9 +135,23 @@ export default function Login() {
         </button>
 
         {!showEmail ? (
-          <button type="button" className="block w-full text-center text-xs text-slate-500 underline-offset-2 hover:underline" onClick={() => setShowEmail(true)}>
-            Use email &amp; password instead
-          </button>
+          <>
+            <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-slate-400">
+              <span className="h-px flex-1 bg-slate-200" />
+              or
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowEmail(true)}
+              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-300 bg-surface px-4 py-3 text-sm font-medium text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--brand)] hover:text-[var(--brand)] hover:shadow-md"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 6h16v12H4zM4 7l8 6 8-6" />
+              </svg>
+              Sign in with email &amp; password
+            </button>
+          </>
         ) : (
           <form onSubmit={submit} className="animate-fade-in space-y-4 border-t border-slate-200 pt-5">
             <Field label="Email">

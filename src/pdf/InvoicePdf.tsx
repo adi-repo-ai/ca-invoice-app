@@ -62,6 +62,7 @@ function makeStyles(brand: string) {
     boxTitle: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: brand, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 5 },
     bold: { fontFamily: 'Helvetica-Bold' },
     clientName: { fontSize: 10.5, fontFamily: 'Helvetica-Bold', marginBottom: 2 },
+    payBox: { width: 290, borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 10 },
     payRow: { flexDirection: 'row', gap: 10 },
     qr: { width: 66, height: 66 },
     qrCaption: { fontSize: 6.5, color: MUTED, textAlign: 'center', marginTop: 2, width: 66 },
@@ -85,12 +86,14 @@ function makeStyles(brand: string) {
     // ---- notes / signature / terms ----
     notes: { marginTop: 12, borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 10 },
     text: { color: '#374151', marginBottom: 1 },
-    signWrap: { marginTop: 28, flexDirection: 'row', justifyContent: 'flex-end' },
+    bottom: { marginTop: 'auto', paddingTop: 16 },
+    bottomRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
+    signWrap: { paddingTop: 28 },
     signBlock: { width: 210, alignItems: 'center' },
     signImg: { height: 40, maxWidth: 170, objectFit: 'contain', marginVertical: 4 },
     signSpace: { height: 36 },
     signLine: { borderTopWidth: 1, borderTopColor: INK, width: 170, marginTop: 2, paddingTop: 3, alignItems: 'center' },
-    terms: { marginTop: 'auto', paddingTop: 8, borderTopWidth: 1, borderTopColor: LINE },
+    terms: { marginTop: 14, paddingTop: 8, borderTopWidth: 1, borderTopColor: LINE },
     // ---- footer ----
     footer: { position: 'absolute', bottom: 22, left: 36, right: 36, flexDirection: 'row', justifyContent: 'space-between', fontSize: 7.5, color: MUTED },
     band: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 12, backgroundColor: brand },
@@ -154,9 +157,9 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProp
         </View>
         <View style={s.rule} />
 
-        {/* Bill to + payment details */}
+        {/* Bill to */}
         <View style={s.row}>
-          <View style={[s.box, { flex: 1.25 }]}>
+          <View style={s.box}>
             <Text style={s.boxTitle}>Bill to</Text>
             <Text style={s.clientName}>{inv.client.name}</Text>
             {inv.client.contactPerson ? <Text>Attn: {inv.client.contactPerson}</Text> : null}
@@ -169,30 +172,6 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProp
               </Text>
             ) : null}
           </View>
-          {(hasBank || qrDataUrl) && (
-            <View style={s.box}>
-              <Text style={s.boxTitle}>Payment details</Text>
-              <View style={s.payRow}>
-                <View style={{ flex: 1 }}>
-                  {firm.bank.accountName ? <Text>A/c name: {firm.bank.accountName}</Text> : null}
-                  {firm.bank.accountNumber ? <Text>A/c no.: {firm.bank.accountNumber}</Text> : null}
-                  {firm.bank.ifsc ? <Text>IFSC: {firm.bank.ifsc}</Text> : null}
-                  {firm.bank.branch ? <Text>Branch: {firm.bank.branch}</Text> : null}
-                  {firm.bank.upiId ? (
-                    <Text style={{ marginTop: 3 }}>
-                      UPI: <Text style={s.bold}>{firm.bank.upiId}</Text>
-                    </Text>
-                  ) : null}
-                </View>
-                {qrDataUrl ? (
-                  <View>
-                    <Image src={qrDataUrl} style={s.qr} />
-                    <Text style={s.qrCaption}>Scan to pay via UPI</Text>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-          )}
         </View>
 
         {/* Services */}
@@ -281,27 +260,56 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProp
           <Text style={{ marginTop: 8, color: '#dc2626' }}>Cancelled: {inv.cancelReason}</Text>
         ) : null}
 
-        {/* Signature (only when "Show signature" is on for this invoice) */}
-        {showSignature && (
-          <View style={s.signWrap} wrap={false}>
-            <View style={s.signBlock}>
-              <Text style={s.bold}>For {firm.name}</Text>
-              {settings.signatureDataUrl ? <Image src={settings.signatureDataUrl} style={s.signImg} /> : <View style={s.signSpace} />}
-              <View style={s.signLine}>
-                {signatory ? <Text style={s.bold}>{signatory}</Text> : null}
-                <Text style={s.muted}>Authorised Signatory</Text>
+        {/* Bottom: payment details + signature, then terms */}
+        <View style={s.bottom} wrap={false}>
+          <View style={s.bottomRow}>
+            {(hasBank || qrDataUrl) && (
+              <View style={s.payBox}>
+                <Text style={s.boxTitle}>Payment details</Text>
+                <View style={s.payRow}>
+                  <View style={{ flex: 1 }}>
+                    {firm.bank.accountName ? <Text>A/c name: {firm.bank.accountName}</Text> : null}
+                    {firm.bank.accountNumber ? <Text>A/c no.: {firm.bank.accountNumber}</Text> : null}
+                    {firm.bank.ifsc ? <Text>IFSC: {firm.bank.ifsc}</Text> : null}
+                    {firm.bank.branch ? <Text>Branch: {firm.bank.branch}</Text> : null}
+                    {firm.bank.upiId ? (
+                      <Text style={{ marginTop: 3 }}>
+                        UPI: <Text style={s.bold}>{firm.bank.upiId}</Text>
+                      </Text>
+                    ) : null}
+                  </View>
+                  {qrDataUrl ? (
+                    <View>
+                      <Image src={qrDataUrl} style={s.qr} />
+                      <Text style={s.qrCaption}>Scan to pay via UPI</Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
+            )}
+            <View style={{ flex: 1 }} />
+            {/* Signature (only when "Show signature" is on for this invoice) */}
+            {showSignature && (
+              <View style={s.signWrap}>
+                <View style={s.signBlock}>
+                  <Text style={s.bold}>For {firm.name}</Text>
+                  {settings.signatureDataUrl ? <Image src={settings.signatureDataUrl} style={s.signImg} /> : <View style={s.signSpace} />}
+                  <View style={s.signLine}>
+                    {signatory ? <Text style={s.bold}>{signatory}</Text> : null}
+                    <Text style={s.muted}>Authorised Signatory</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+          {/* Terms at the bottom */}
+          {inv.terms ? (
+            <View style={s.terms}>
+              <Text style={s.boxTitle}>Terms &amp; conditions</Text>
+              <Lines text={inv.terms} style={s.text} />
             </View>
-          </View>
-        )}
-
-        {/* Terms at the bottom */}
-        {inv.terms ? (
-          <View style={s.terms} wrap={false}>
-            <Text style={s.boxTitle}>Terms &amp; conditions</Text>
-            <Lines text={inv.terms} style={s.text} />
-          </View>
-        ) : null}
+          ) : null}
+        </View>
 
         <View style={s.footer} fixed>
           <Text>
