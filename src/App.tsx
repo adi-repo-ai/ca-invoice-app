@@ -19,6 +19,8 @@ const ClientView = lazy(() => import('./pages/ClientView'));
 const Settings = lazy(() => import('./pages/Settings'));
 const Users = lazy(() => import('./pages/Users'));
 const Backup = lazy(() => import('./pages/Backup'));
+const Activity = lazy(() => import('./pages/Activity'));
+const Reports = lazy(() => import('./pages/Reports'));
 
 /** Every route except /login requires a signed-in user with a role claim. */
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -131,6 +133,8 @@ export default function App() {
               ['/settings', <AdminOnly><Settings /></AdminOnly>],
               ['/settings/users', <AdminOnly><Users /></AdminOnly>],
               ['/settings/backup', <AdminOnly><Backup /></AdminOnly>],
+              ['/settings/activity', <AdminOnly><Activity /></AdminOnly>],
+              ['/reports', <Reports />],
               ['/users', <Navigate to="/settings/users" replace />],
               ['/backup', <Navigate to="/settings/backup" replace />],
             ] as [string, ReactNode][]

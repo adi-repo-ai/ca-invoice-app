@@ -352,6 +352,26 @@ export async function countInvoices(db: Firestore, f: InvoiceFilter): Promise<nu
   return (await getCountFromServer(query(collection(db, 'invoices'), ...filterConstraints(f)))).data().count;
 }
 
+/** Numbered invoices (issued, paid or cancelled) ever created. */
+export async function countNumbered(db: Firestore): Promise<number> {
+  return (await getCountFromServer(query(collection(db, 'invoices'), where('status', 'in', ['ISSUED', 'PAID', 'CANCELLED'])))).data().count;
+}
+
+/** Exact invoice-number lookup, e.g. "LKA/2026-27/0007". */
+export async function findInvoiceByNumber(db: Firestore, number: string): Promise<InvoiceRow | null> {
+  const snap = await getDocs(query(collection(db, 'invoices'), where('number', '==', number), limit(1)));
+  const d = snap.docs[0];
+  return d ? { id: d.id, ...(d.data() as Invoice) } : null;
+}
+
+/** Drafts created before a date (oldest first): nudges to finish or delete them. */
+export async function listOldDrafts(db: Firestore, before: string, max = 5): Promise<InvoiceRow[]> {
+  const snap = await getDocs(
+    query(collection(db, 'invoices'), where('status', '==', 'DRAFT'), where('invoiceDate', '<', before), orderBy('invoiceDate', 'asc'), limit(max)),
+  );
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Invoice) }));
+}
+
 /** All invoices matching a filter (for CSV export), fetched in pages of 500. */
 export async function listAllInvoices(db: Firestore, f: InvoiceFilter): Promise<InvoiceRow[]> {
   const out: InvoiceRow[] = [];

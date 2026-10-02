@@ -44,6 +44,15 @@ export interface FirmSettings {
   sacCodes: SacCode[];
   invoicePrefix: string; // 1–3 capital letters, e.g. "LKA"
   paymentDueDays: number; // due date = invoice date + N days
+  monthlyGoalPaise: number; // monthly collection target shown on Home (0 = off)
+  templates: MessageTemplates; // editable WhatsApp / email messages
+}
+
+/** Message templates. Placeholders: {client} {number} {date} {due} {amount} {days} {upi} {paylink} {firm} {paidDate} */
+export interface MessageTemplates {
+  invoice: string;
+  reminder: string;
+  receipt: string;
 }
 
 export interface Client {
@@ -57,6 +66,8 @@ export interface Client {
   stateCode: string;
   gstin: string; // '' when unregistered
   pan: string;
+  tags?: string[]; // e.g. ['Individual', 'ITR']
+  notes?: string; // internal notes (never printed)
 }
 
 export interface LineItem {

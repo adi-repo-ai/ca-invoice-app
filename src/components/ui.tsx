@@ -84,9 +84,9 @@ export function Field({
   children,
   className = '',
 }: {
-  label: string;
+  label: ReactNode;
   error?: string;
-  hint?: string;
+  hint?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
@@ -175,7 +175,65 @@ export function Stat({ label, value, hint, tone = 'default' }: { label: string; 
   );
 }
 
-/** Empty state for lists. */
-export function Empty({ children }: { children: ReactNode }) {
-  return <p className="rounded-xl border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">{children}</p>;
+/** Empty state for lists, optionally with an icon and an action button. */
+export function Empty({ children, icon, action }: { children: ReactNode; icon?: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+      {icon && <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand)]/10 text-[var(--brand)]">{icon}</div>}
+      <div>{children}</div>
+      {action}
+    </div>
+  );
+}
+
+/** Grey shimmering placeholder while data loads. */
+export function Skeleton({ className = '' }: { className?: string }) {
+  return <div className={`animate-pulse rounded-md bg-slate-200/80 ${className}`} aria-hidden="true" />;
+}
+
+/** Placeholder rows for lists and tables. */
+export function SkeletonRows({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="space-y-3 py-2" role="status" aria-label="Loading">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <Skeleton className="h-9 w-9 rounded-full" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-3.5 w-1/3" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+          <Skeleton className="h-4 w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Small ⓘ that shows a plain-language explanation on hover / tap / focus. */
+export function Tip({ children, label = 'More info' }: { children: ReactNode; label?: string }) {
+  return (
+    <span className="group relative inline-flex align-middle">
+      <button
+        type="button"
+        aria-label={label}
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-400 text-[10px] font-bold leading-none text-slate-500 hover:border-[var(--brand)] hover:text-[var(--brand)] focus:border-[var(--brand)] focus:text-[var(--brand)] focus:outline-none"
+        onClick={(e) => e.preventDefault()}
+      >
+        i
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none invisible absolute bottom-full left-1/2 z-40 mb-2 w-64 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal text-white opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+      >
+        {children}
+      </span>
+    </span>
+  );
+}
+
+/** "12 days overdue" pill (nothing when not overdue). */
+export function OverdueBadge({ dueDate, today, status }: { dueDate: string; today: string; status: string }) {
+  if (status !== 'ISSUED' || dueDate >= today) return null;
+  const days = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${dueDate}T00:00:00Z`)) / 86_400_000);
+  return <span className="whitespace-nowrap rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">{days} {days === 1 ? 'day' : 'days'} overdue</span>;
 }

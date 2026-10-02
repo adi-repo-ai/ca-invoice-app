@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 
-/** Sub-navigation inside Settings: firm details, users, backup. */
+/** Sub-navigation inside Settings: firm details, users, activity, backup. */
 export function SettingsTabs() {
   const cls = ({ isActive }: { isActive: boolean }) =>
     `rounded-md px-3 py-1.5 text-sm font-medium ${isActive ? 'bg-[var(--brand)] text-white' : 'text-slate-700 hover:bg-slate-100'}`;
@@ -11,6 +11,9 @@ export function SettingsTabs() {
       </NavLink>
       <NavLink to="/settings/users" className={cls}>
         Users
+      </NavLink>
+      <NavLink to="/settings/activity" className={cls}>
+        Activity
       </NavLink>
       <NavLink to="/settings/backup" className={cls}>
         Backup

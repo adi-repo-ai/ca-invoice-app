@@ -14,6 +14,7 @@ import {
   startAfter,
   startAt,
   updateDoc,
+  where,
   type DocumentSnapshot,
   type Firestore,
 } from 'firebase/firestore';
@@ -88,6 +89,24 @@ export async function listClientsNewest(
   after: DocumentSnapshot | null,
 ): Promise<{ rows: ClientRow[]; last: DocumentSnapshot | null; hasMore: boolean }> {
   const parts = [orderBy('createdAt', 'desc')] as Parameters<typeof query>[1][];
+  if (after) parts.push(startAfter(after));
+  parts.push(limit(CLIENT_PAGE_SIZE + 1));
+  const snap = await getDocs(query(collection(db, 'clients'), ...parts));
+  const docs = snap.docs.slice(0, CLIENT_PAGE_SIZE);
+  return {
+    rows: docs.map((d) => ({ id: d.id, ...(d.data() as Client) })),
+    last: docs[docs.length - 1] ?? null,
+    hasMore: snap.docs.length > CLIENT_PAGE_SIZE,
+  };
+}
+
+/** Clients with a tag, A–Z. */
+export async function listClientsByTag(
+  db: Firestore,
+  tag: string,
+  after: DocumentSnapshot | null,
+): Promise<{ rows: ClientRow[]; last: DocumentSnapshot | null; hasMore: boolean }> {
+  const parts = [where('tags', 'array-contains', tag), orderBy('nameLower')] as Parameters<typeof query>[1][];
   if (after) parts.push(startAfter(after));
   parts.push(limit(CLIENT_PAGE_SIZE + 1));
   const snap = await getDocs(query(collection(db, 'clients'), ...parts));

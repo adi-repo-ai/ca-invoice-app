@@ -36,7 +36,19 @@ export const DEFAULT_SETTINGS: FirmSettings = {
   ],
   invoicePrefix: 'LKA',
   paymentDueDays: 15,
+  monthlyGoalPaise: 0,
+  templates: {
+    invoice:
+      'Dear {client},\nPlease find attached invoice {number} dated {date} for Rs. {amount}, due by {due}.\n{paylink}\nThank you,\n{firm}',
+    reminder:
+      'Dear {client},\nThis is a gentle reminder that invoice {number} for Rs. {amount} was due on {due} ({days} days ago).\n{paylink}\nPlease ignore if already paid. Thank you,\n{firm}',
+    receipt:
+      'Dear {client},\nThank you! We have received Rs. {amount} on {paidDate} against invoice {number}. The receipt is attached.\nRegards,\n{firm}',
+  },
 };
+
+/** Tags offered for clients (used for filtering). */
+export const CLIENT_TAGS = ['Individual', 'Business', 'Company', 'Partnership', 'Trust', 'ITR', 'GST', 'Audit', 'TDS', 'ROC', 'Accounting'] as const;
 
 /** Merge a (possibly partial / older) settings doc with defaults. */
 export function withDefaults(raw: Partial<FirmSettings> | undefined): FirmSettings {
@@ -46,5 +58,6 @@ export function withDefaults(raw: Partial<FirmSettings> | undefined): FirmSettin
     ...r,
     bank: { ...DEFAULT_SETTINGS.bank, ...(r.bank ?? {}) },
     sacCodes: r.sacCodes ?? DEFAULT_SETTINGS.sacCodes,
+    templates: { ...DEFAULT_SETTINGS.templates, ...(r.templates ?? {}) },
   };
 }

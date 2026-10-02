@@ -4,6 +4,7 @@ import { useAuth } from '../auth';
 import { Alert, Button, Card, Field, Loading, PageHeader, errorMessage } from '../components/ui';
 import { createClient, getClient, updateClient, type ClientInput } from '../data/clients';
 import { db } from '../firebase';
+import { CLIENT_TAGS } from '../lib/defaults';
 import { INDIAN_STATES, STATES_BY_NAME } from '../lib/states';
 import { isValidEmail, isValidGstin, isValidPan, normaliseWhatsapp } from '../lib/validation';
 import { useSettings } from '../settings-context';
@@ -18,6 +19,8 @@ const EMPTY: ClientInput = {
   stateCode: '',
   gstin: '',
   pan: '',
+  tags: [],
+  notes: '',
 };
 
 export function validateClient(c: ClientInput, requireState = true): Partial<Record<keyof ClientInput, string>> {
@@ -52,7 +55,7 @@ export default function ClientEdit() {
         const { id: _id, nameLower: _n, ...rest } = row;
         void _id;
         void _n;
-        setC(rest);
+        setC({ ...rest, tags: rest.tags ?? [], notes: rest.notes ?? '' });
       })
       .catch((e) => setError(errorMessage(e)));
   }, [id]);
@@ -67,6 +70,8 @@ export default function ClientEdit() {
       name: c!.name.trim(),
       email: c!.email.trim(),
       whatsapp: c!.whatsapp ? (normaliseWhatsapp(c!.whatsapp) ?? c!.whatsapp) : '',
+      tags: c!.tags ?? [],
+      notes: (c!.notes ?? '').trim(),
     };
     const errs = validateClient(clean, settings.chargeGst);
     setErrors(errs);
@@ -132,6 +137,30 @@ export default function ClientEdit() {
             <input value={c.pan} maxLength={10} onChange={(e) => set('pan', e.target.value.toUpperCase().trim())} />
           </Field>
         </div>
+      </Card>
+      <Card title="Tags & notes">
+        <div className="mb-1 text-sm font-medium text-slate-700">Tags</div>
+        <p className="mb-2 text-xs text-slate-500">Group clients by type and service; filter by these on the Clients page.</p>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Client tags">
+          {CLIENT_TAGS.map((t) => {
+            const on = (c.tags ?? []).includes(t);
+            return (
+              <button
+                key={t}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setC({ ...c, tags: on ? (c.tags ?? []).filter((x) => x !== t) : [...(c.tags ?? []), t] })}
+                className={`rounded-full border px-3 py-1 text-sm transition ${on ? 'border-[var(--brand)] bg-[var(--brand)] text-white' : 'border-slate-300 text-slate-700 hover:border-[var(--brand)] hover:text-[var(--brand)]'}`}
+              >
+                {on ? '✓ ' : ''}
+                {t}
+              </button>
+            );
+          })}
+        </div>
+        <Field label="Internal notes (never printed on invoices)" className="mt-4">
+          <textarea rows={3} maxLength={2000} placeholder="e.g. Prefers WhatsApp. ITR filed every July. Accountant: Ramesh." value={c.notes ?? ''} onChange={(e) => setC({ ...c, notes: e.target.value })} />
+        </Field>
       </Card>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={() => navigate(-1)}>

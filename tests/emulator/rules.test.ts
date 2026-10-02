@@ -100,6 +100,12 @@ describe('firm settings', () => {
     const big = 'data:image/png;base64,' + 'A'.repeat(400_001);
     await assertFails(saveSettings(db, ADMIN.uid, { ...SETTINGS, logoDataUrl: big }));
     await assertFails(saveSettings(db, ADMIN.uid, { ...SETTINGS, brandColor: 'blue' }));
+    // Monthly goal and message templates.
+    const templates = { invoice: 'Hi {client}', reminder: 'Reminder {number}', receipt: 'Thanks {amount}' };
+    await assertSucceeds(saveSettings(db, ADMIN.uid, { ...SETTINGS, monthlyGoalPaise: 200000_00, templates }));
+    await assertFails(saveSettings(db, ADMIN.uid, { ...SETTINGS, monthlyGoalPaise: -1 }));
+    await assertFails(saveSettings(db, ADMIN.uid, { ...SETTINGS, templates: { ...templates, extra: 'x' } as typeof templates }));
+    await assertFails(saveSettings(db, ADMIN.uid, { ...SETTINGS, templates: { ...templates, invoice: 'x'.repeat(2001) } }));
     await assertFails(saveSettings(db, ADMIN.uid, { ...SETTINGS, invoicePrefix: 'LKAX' }));
     await assertFails(saveSettings(db, ADMIN.uid, { ...SETTINGS, tagline: 'x'.repeat(101) }));
     await assertSucceeds(
@@ -135,6 +141,13 @@ describe('clients', () => {
     await assertFails(deleteDoc(doc(fs(env.unauthenticatedContext()), 'clients/ts')));
     await assertFails(deleteDoc(doc(fs(asNoRole(env)), 'clients/ts')));
     await assertSucceeds(deleteDoc(doc(db, 'clients/ts'))); // staff can remove a client
+  });
+
+  it('accepts tags and internal notes within limits', async () => {
+    const db = fs(asStaff(env));
+    await assertSucceeds(createClient(db, STAFF.uid, { ...TS_CLIENT, tags: ['ITR', 'GST'], notes: 'Prefers WhatsApp' }));
+    await assertFails(createClient(db, STAFF.uid, { ...TS_CLIENT, tags: Array.from({ length: 13 }, (_, i) => `t${i}`) }));
+    await assertFails(createClient(db, STAFF.uid, { ...TS_CLIENT, notes: 'x'.repeat(2001) }));
   });
 });
 

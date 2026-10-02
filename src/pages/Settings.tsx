@@ -8,6 +8,7 @@ import { Alert, Button, Card, Field, PageHeader, Switch, errorMessage } from '..
 import { saveSettings } from '../data/settings';
 import { db } from '../firebase';
 import { formatInvoiceNumber, fyForDate, todayIST } from '../lib/fy';
+import { DEFAULT_SETTINGS } from '../lib/defaults';
 import { resizeLogo } from '../lib/image';
 import { paiseToInput, parseRupeesToPaise } from '../lib/money';
 import { INDIAN_STATES, STATES_BY_NAME } from '../lib/states';
@@ -108,6 +109,7 @@ export default function Settings() {
   const { settings, saved, reload } = useSettings();
   const [s, setS] = useState<FirmSettings>(settings);
   const [gstRate, setGstRate] = useState(String(settings.gstRateBp / 100));
+  const [goal, setGoal] = useState(settings.monthlyGoalPaise ? paiseToInput(settings.monthlyGoalPaise) : '');
   // Default service prices as typed (rupees); converted to paise on save.
   const [rates, setRates] = useState<string[]>(settings.sacCodes.map((c) => (c.ratePaise ? paiseToInput(c.ratePaise) : '')));
   const [errors, setErrors] = useState<Errors>({});
@@ -117,6 +119,7 @@ export default function Settings() {
   useEffect(() => {
     setS(settings);
     setGstRate(String(settings.gstRateBp / 100));
+    setGoal(settings.monthlyGoalPaise ? paiseToInput(settings.monthlyGoalPaise) : '');
     setRates(settings.sacCodes.map((c) => (c.ratePaise ? paiseToInput(c.ratePaise) : '')));
   }, [settings]);
 
@@ -147,6 +150,8 @@ export default function Settings() {
     rates.forEach((r, i) => {
       if (r.trim() && (parseRupeesToPaise(r) ?? -1) < 0) errs[`rate${i}`] = 'Enter a valid price or leave blank';
     });
+    const monthlyGoalPaise = goal.trim() ? parseRupeesToPaise(goal) : 0;
+    if (monthlyGoalPaise === null || monthlyGoalPaise < 0) errs.goal = 'Enter an amount in rupees, or leave blank';
     setErrors(errs);
     if (Object.keys(errs).length) return setMsg({ kind: 'error', text: 'Please fix the highlighted fields.' });
     setBusy(true);
@@ -158,7 +163,7 @@ export default function Settings() {
         const ratePaise = rates[i]?.trim() ? parseRupeesToPaise(rates[i]) : null;
         return ratePaise ? { code: c.code, description: c.description.trim(), ratePaise } : { code: c.code, description: c.description.trim() };
       });
-      await saveSettings(db, user!.uid, { ...s, sacCodes, gstRateBp, name: s.name.trim() });
+      await saveSettings(db, user!.uid, { ...s, sacCodes, gstRateBp, monthlyGoalPaise: monthlyGoalPaise ?? 0, name: s.name.trim() });
       await reload();
       setMsg({ kind: 'success', text: 'Settings saved.' });
     } catch (err) {
@@ -330,6 +335,37 @@ export default function Settings() {
       </Card>
 
       <NumberingCard prefix={s.invoicePrefix} />
+
+      <Card title="Goals & messages">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Monthly collection goal (₹)" error={errors.goal} hint="Shown as a progress ring on Home. Leave blank to hide.">
+            <input inputMode="decimal" placeholder="e.g. 200000" value={goal} onChange={(e) => setGoal(e.target.value)} />
+          </Field>
+        </div>
+        <div className="mt-5">
+          <h3 className="text-sm font-semibold text-slate-700">WhatsApp / email messages</h3>
+          <p className="mb-3 text-xs text-slate-500">
+            Used when sending invoices, reminders and receipts. Placeholders: {'{client} {number} {date} {due} {amount} {days} {paylink} {upi} {firm} {paidDate}'}. Lines
+            whose placeholder is empty (e.g. no UPI ID) are left out.
+          </p>
+          <div className="grid gap-4 lg:grid-cols-3">
+            {(
+              [
+                ['invoice', 'Sending an invoice'],
+                ['reminder', 'Payment reminder'],
+                ['receipt', 'Payment receipt'],
+              ] as const
+            ).map(([k, label]) => (
+              <Field key={k} label={label}>
+                <textarea rows={7} maxLength={2000} value={s.templates[k]} onChange={(e) => set('templates', { ...s.templates, [k]: e.target.value })} />
+              </Field>
+            ))}
+          </div>
+          <Button type="button" variant="ghost" className="mt-2 !px-2 text-xs" onClick={() => set('templates', { ...DEFAULT_SETTINGS.templates })}>
+            Reset messages to default
+          </Button>
+        </div>
+      </Card>
 
       <Card title="Signature (printed on invoices)">
         <div className="grid gap-6 sm:grid-cols-2">

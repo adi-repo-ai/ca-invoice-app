@@ -5,7 +5,7 @@ import { InvoiceTable } from '../components/InvoiceTable';
 import { useAuth, useActor } from '../auth';
 import { useDialog } from '../components/Dialog';
 import { EyeIcon, EyeOffIcon, TrashIcon } from '../components/icons';
-import { Alert, Button, Card, Field, LinkButton, Loading, PageHeader, errorMessage } from '../components/ui';
+import { Alert, Button, Card, Field, LinkButton, PageHeader, SkeletonRows, errorMessage } from '../components/ui';
 import type { ClientRow } from '../data/clients';
 import { countInvoices, deleteInvoices, listAllInvoices, listInvoices, type InvoiceFilter, type InvoiceRow } from '../data/invoices';
 import { db } from '../firebase';
@@ -291,7 +291,18 @@ export default function Invoices() {
           </div>
         </div>
         <div className="mt-2">
-          {!rows ? <Loading /> : <InvoiceTable rows={rows} pdfActions hideAmounts={hidden} onDelete={removeOne} canDelete={canDelete} />}
+          {!rows ? (
+            <SkeletonRows />
+          ) : (
+            <InvoiceTable
+              rows={rows}
+              pdfActions
+              hideAmounts={hidden}
+              onDelete={removeOne}
+              canDelete={canDelete}
+              onNotice={(text, kind) => (kind === 'error' ? (setError(text), setNotice('')) : (setNotice(text), setError('')))}
+            />
+          )}
           {hasMore && (
             <div className="mt-3 text-center">
               <Button variant="secondary" busy={busy === 'more'} onClick={more}>

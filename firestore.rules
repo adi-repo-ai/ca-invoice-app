@@ -43,7 +43,8 @@ service cloud.firestore {
       return d.keys().hasOnly(['name', 'tagline', 'proprietor', 'address', 'stateName', 'stateCode', 'phone', 'email',
           'website', 'gstin', 'pan', 'bank', 'defaultTerms', 'brandColor', 'logoDataUrl',
           'signatureDataUrl', 'signatoryName', 'chargeGst',
-          'gstRateBp', 'sacCodes', 'invoicePrefix', 'paymentDueDays', 'updatedAt', 'updatedBy'])
+          'gstRateBp', 'sacCodes', 'invoicePrefix', 'paymentDueDays', 'monthlyGoalPaise', 'templates',
+          'updatedAt', 'updatedBy'])
         && nonEmpty(d.name, 200)
         && (!('tagline' in d) || str(d.tagline, 100))
         && (!('proprietor' in d) || str(d.proprietor, 200))
@@ -65,6 +66,13 @@ service cloud.firestore {
         && d.sacCodes is list && d.sacCodes.size() <= 100
         && d.invoicePrefix is string && d.invoicePrefix.matches('^[A-Z]{1,3}$')
         && d.paymentDueDays is int && d.paymentDueDays >= 0 && d.paymentDueDays <= 365
+        && (!('monthlyGoalPaise' in d) || (d.monthlyGoalPaise is int && d.monthlyGoalPaise >= 0
+            && d.monthlyGoalPaise <= 100000000000))
+        && (!('templates' in d) || (d.templates is map
+            && d.templates.keys().hasOnly(['invoice', 'reminder', 'receipt'])
+            && str(d.templates.get('invoice', ''), 2000)
+            && str(d.templates.get('reminder', ''), 2000)
+            && str(d.templates.get('receipt', ''), 2000)))
         && d.updatedBy == uid() && d.updatedAt == request.time;
     }
 
@@ -119,7 +127,7 @@ service cloud.firestore {
     // ---------- clients ----------
     function validClient(d) {
       return d.keys().hasOnly(['name', 'nameLower', 'contactPerson', 'email', 'whatsapp',
-          'address', 'stateName', 'stateCode', 'gstin', 'pan',
+          'address', 'stateName', 'stateCode', 'gstin', 'pan', 'tags', 'notes',
           'createdAt', 'createdBy', 'updatedAt', 'updatedBy'])
         && nonEmpty(d.name, 200)
         && d.nameLower == d.name.lower()
@@ -131,6 +139,8 @@ service cloud.firestore {
         && d.stateCode is string && d.stateCode.matches('^[0-9]{2}$')
         && (d.gstin == '' || d.gstin.matches('^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$'))
         && (d.pan == '' || d.pan.matches('^[A-Z]{5}[0-9]{4}[A-Z]$'))
+        && (!('tags' in d) || (d.tags is list && d.tags.size() <= 12))
+        && (!('notes' in d) || str(d.notes, 2000))
         && d.updatedBy == uid() && d.updatedAt == request.time;
     }
 

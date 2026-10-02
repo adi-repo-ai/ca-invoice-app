@@ -11,7 +11,7 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
         applyTheme(dark ? 'light' : 'dark');
         setDark(!dark);
       }}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition hover:bg-black/10 ${className}`}
+      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition hover:bg-black/10 ${className}`}
       aria-label={dark ? 'Switch to day theme' : 'Switch to night theme'}
       title={dark ? 'Day theme' : 'Night theme'}
     >

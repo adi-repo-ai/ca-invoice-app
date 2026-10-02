@@ -2,12 +2,17 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useDialog } from '../components/Dialog';
-import { Button, Card, Empty, LinkButton, Money, errorMessage } from '../components/ui';
+import { BarChart, Ring, shortRupees, type BarPoint } from '../components/Charts';
+import { Button, Card, Empty, LinkButton, Money, OverdueBadge, Skeleton, SkeletonRows, errorMessage } from '../components/ui';
+import { describeAudit, listRecentAudit, timeAgo, type AuditEntry } from '../data/audit';
 import { countClients } from '../data/clients';
 import { addHome, deleteHome, listHome, updateHome, type HomeItem, type HomeKind } from '../data/home';
-import { listOverdue, periodTotals, type InvoiceRow, type PeriodTotals } from '../data/invoices';
+import { countNumbered, listOldDrafts, listOverdue, periodTotals, type InvoiceRow, type PeriodTotals } from '../data/invoices';
 import { db } from '../firebase';
-import { fyForDate, fyRange, monthRange, todayIST } from '../lib/fy';
+import { addDays, fyForDate, fyRange, monthRange, todayIST } from '../lib/fy';
+import { daysBetween } from '../lib/messages';
+import { formatPaise } from '../lib/money';
+import { useSettings } from '../settings-context';
 
 function greeting(): string {
   const h = Number(new Intl.DateTimeFormat('en-IN', { hour: 'numeric', hour12: false, timeZone: 'Asia/Kolkata' }).format(new Date()));
@@ -42,27 +47,113 @@ function useHomeItems(kind: HomeKind) {
   return { items, error, reload, uid: user!.uid };
 }
 
+const MILESTONES = [1, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
+const MONEY_MILESTONES = [100000_00, 500000_00, 1000000_00, 2500000_00, 5000000_00, 10000000_00];
+
+function readFlag(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+function setFlag(key: string): void {
+  try {
+    localStorage.setItem(key, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Last N calendar months (oldest first) as { label, start, end }. */
+function lastMonths(today: string, n: number) {
+  const [y, m] = today.split('-').map(Number);
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(Date.UTC(y, m - 1 - (n - 1 - i), 1));
+    const iso = d.toISOString().slice(0, 10);
+    return { label: d.toLocaleDateString('en-IN', { month: 'short', timeZone: 'UTC' }), ...monthRange(iso) };
+  });
+}
+
 export default function Home() {
   const { user, role } = useAuth();
+  const { settings, saved } = useSettings();
   const now = useClock();
   const today = todayIST();
   const fy = fyForDate(today);
   const [month, setMonth] = useState<PeriodTotals | null>(null);
   const [year, setYear] = useState<PeriodTotals | null>(null);
+  const [week, setWeek] = useState<PeriodTotals | null>(null);
+  const [series, setSeries] = useState<BarPoint[] | null>(null);
   const [clients, setClients] = useState<number | null>(null);
+  const [numbered, setNumbered] = useState<number | null>(null);
   const [overdue, setOverdue] = useState<InvoiceRow[] | null>(null);
+  const [drafts, setDrafts] = useState<InvoiceRow[]>([]);
+  const [activity, setActivity] = useState<AuditEntry[] | null>(null);
+  const [dueTasks, setDueTasks] = useState<number | null>(null);
+  const [todayEvents, setTodayEvents] = useState<HomeItem[]>([]);
+  const [, bump] = useState(0);
 
   useEffect(() => {
     const m = monthRange(today);
     const y = fyRange(fy);
     periodTotals(db, m.start, m.end).then(setMonth).catch(() => undefined);
     periodTotals(db, y.start, y.end).then(setYear).catch(() => undefined);
+    periodTotals(db, addDays(today, -6), today).then(setWeek).catch(() => undefined);
+    Promise.all(lastMonths(today, 6).map(async (mo) => ({ mo, t: await periodTotals(db, mo.start, mo.end) })))
+      .then((rows) => setSeries(rows.map(({ mo, t }) => ({ label: mo.label, a: t.invoicedPaise, b: t.receivedPaise }))))
+      .catch(() => setSeries([]));
     countClients(db).then(setClients).catch(() => undefined);
-    listOverdue(db, today, 5).then(setOverdue).catch(() => setOverdue([]));
-  }, [today, fy]);
+    countNumbered(db).then(setNumbered).catch(() => undefined);
+    listOverdue(db, today, 50).then(setOverdue).catch(() => setOverdue([]));
+    listOldDrafts(db, addDays(today, -7), 3).then(setDrafts).catch(() => undefined);
+    listRecentAudit(db, 8)
+      .then((r) => setActivity(r.rows))
+      .catch(() => setActivity([]));
+    if (user) {
+      listHome(db, user.uid, 'tasks')
+        .then((t) => setDueTasks(t.filter((x) => !x.done && (x.date ?? '') <= today).length))
+        .catch(() => setDueTasks(0));
+      listHome(db, user.uid, 'events')
+        .then((e) => setTodayEvents(e.filter((x) => x.date === today)))
+        .catch(() => undefined);
+    }
+  }, [today, fy, user]);
 
   const name = (user?.displayName || user?.email?.split('@')[0] || '').trim();
   const collected = year && year.invoicedPaise > 0 ? Math.min(100, Math.round((year.receivedPaise / year.invoicedPaise) * 100)) : 0;
+  const overdueSum = (overdue ?? []).reduce((t, r) => t + r.totals.grandTotalPaise, 0);
+  const goal = settings.monthlyGoalPaise;
+  const goalPct = goal && month ? Math.round((month.receivedPaise / goal) * 100) : 0;
+
+  // Getting started: shown until everything is done (or dismissed).
+  const steps = [
+    { done: saved, label: 'Check and save your firm details', to: '/settings', admin: true },
+    { done: Boolean(settings.bank.upiId || settings.bank.accountNumber), label: 'Add bank / UPI details (adds a "Scan to pay" QR)', to: '/settings', admin: true },
+    { done: Boolean(settings.signatureDataUrl), label: 'Upload your signature', to: '/settings', admin: true },
+    { done: (clients ?? 0) > 0, label: 'Add your first client', to: '/clients/new', admin: false },
+    { done: (numbered ?? 0) > 0, label: 'Create and send your first invoice', to: '/invoices/new', admin: false },
+  ].filter((st) => role === 'ADMIN' || !st.admin);
+  const stepsDone = steps.filter((st) => st.done).length;
+  const showSetup = clients !== null && numbered !== null && stepsDone < steps.length && !readFlag('setupDismissed');
+
+  // Milestones: highest reached, until dismissed.
+  const countMilestone = numbered ? [...MILESTONES].reverse().find((m) => numbered >= m) : undefined;
+  const moneyMilestone = year ? [...MONEY_MILESTONES].reverse().find((m) => year.receivedPaise >= m) : undefined;
+  const milestone =
+    moneyMilestone && !readFlag(`ms-money-${fy}-${moneyMilestone}`)
+      ? { key: `ms-money-${fy}-${moneyMilestone}`, text: `₹${shortRupees(moneyMilestone)} collected in FY ${fy}!`, sub: 'A big step for the firm. Keep it going.' }
+      : countMilestone && countMilestone > 1 && !readFlag(`ms-count-${countMilestone}`)
+        ? { key: `ms-count-${countMilestone}`, text: `${countMilestone} invoices issued!`, sub: 'Every one numbered, logged and backed by the audit trail.' }
+        : null;
+
+  const nudges: { text: ReactNode; to: string }[] = [
+    ...drafts.map((d) => ({ text: <>Draft for <b>{d.client.name}</b> is over a week old: finish or delete it?</>, to: `/invoices/${d.id}` })),
+    ...(overdue ?? [])
+      .filter((r) => daysBetween(r.dueDate, today) > 30)
+      .slice(0, 2)
+      .map((r) => ({ text: <><b>{r.client.name}</b> is {daysBetween(r.dueDate, today)} days late on {r.number}: send a reminder?</>, to: `/invoices/${r.id}` })),
+  ];
 
   return (
     <div className="space-y-6">
@@ -79,42 +170,199 @@ export default function Home() {
               {greeting()}
               {name ? `, ${name}` : ''} 👋
             </h1>
-            <p className="mt-1 text-sm text-white/80">Here's what's happening today.</p>
+            <p className="mt-1 text-sm text-white/85">
+              {week && week.receivedPaise > 0 ? (
+                <>
+                  You collected <b>₹{formatPaise(week.receivedPaise)}</b> in the last 7 days 👏
+                </>
+              ) : (
+                "Here's what's happening today."
+              )}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <QuickAction to="/invoices/new" label="New invoice" primary />
             <QuickAction to="/clients/new" label="New client" />
-            <QuickAction to="/invoices" label="All invoices" />
+            <QuickAction to="/reports" label="Reports" />
             {role === 'ADMIN' && <QuickAction to="/settings/backup" label="Backup" />}
           </div>
         </div>
       </section>
 
+      {milestone && (
+        <div className="animate-fade-in flex items-center gap-4 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 p-4 shadow-sm">
+          <span className="text-3xl" aria-hidden="true">
+            🏆
+          </span>
+          <div className="flex-1">
+            <div className="font-semibold text-amber-900">{milestone.text}</div>
+            <div className="text-sm text-amber-800/80">{milestone.sub}</div>
+          </div>
+          <button
+            type="button"
+            className="rounded-lg px-2 py-1 text-sm text-amber-800 hover:bg-amber-100"
+            onClick={() => {
+              setFlag(milestone.key);
+              bump((n) => n + 1);
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {showSetup && (
+        <Card
+          title={`Getting started · ${stepsDone} of ${steps.length} done`}
+          actions={
+            <button
+              type="button"
+              className="text-xs text-slate-500 hover:underline"
+              onClick={() => {
+                setFlag('setupDismissed');
+                bump((n) => n + 1);
+              }}
+            >
+              Hide
+            </button>
+          }
+        >
+          <div className="mb-4 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full rounded-full bg-gradient-to-r from-[var(--brand)] to-green-500 transition-all duration-700" style={{ width: `${(stepsDone / steps.length) * 100}%` }} />
+          </div>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {steps.map((st) => (
+              <li key={st.label}>
+                <Link
+                  to={st.to}
+                  className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition ${st.done ? 'border-green-200 bg-green-50 text-green-800' : 'border-slate-200 hover:border-[var(--brand)] hover:text-[var(--brand)]'}`}
+                >
+                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs ${st.done ? 'bg-green-500 text-white' : 'border border-slate-300'}`}>{st.done ? '✓' : ''}</span>
+                  <span className={st.done ? 'line-through decoration-green-400' : ''}>{st.label}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {/* Today */}
+      <section aria-label="Today" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <TodayTile to="/invoices" tone="red" label="Overdue" value={overdue ? String(overdue.length) : '…'} hint={overdue && overdue.length ? `₹${formatPaise(overdueSum)} late` : 'Nothing overdue'} />
+        <TodayTile to="/invoices" tone="amber" label="To collect (FY)" value={year ? `₹${shortRupees(year.outstandingPaise)}` : '…'} hint="Issued, not yet paid" />
+        <TodayTile to="/" tone="blue" label="Tasks due" value={dueTasks === null ? '…' : String(dueTasks)} hint={dueTasks ? 'See your task list below' : 'All clear'} />
+        <TodayTile
+          to="/"
+          tone="green"
+          label="Today's events"
+          value={String(todayEvents.length)}
+          hint={todayEvents.length ? todayEvents.map((e) => `${e.time ? `${e.time} ` : ''}${e.title}`).join(' · ') : 'No events today'}
+        />
+      </section>
+
+      {nudges.length > 0 && (
+        <div className="space-y-2">
+          {nudges.map((n, i) => (
+            <Link key={i} to={n.to} className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/70 px-4 py-2.5 text-sm text-blue-900 transition hover:bg-blue-50">
+              <span aria-hidden="true">💡</span>
+              <span className="flex-1">{n.text}</span>
+              <span className="text-blue-600">→</span>
+            </Link>
+          ))}
+        </div>
+      )}
+
       {/* Statistics */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Invoiced this month" value={month ? <Money paise={month.invoicedPaise} /> : '…'} />
-        <StatCard label="Received this month" value={month ? <Money paise={month.receivedPaise} /> : '…'} tone="good" />
-        <StatCard label="Pending (FY)" value={year ? <Money paise={year.outstandingPaise} /> : '…'} tone="warn" />
-        <StatCard label="Clients" value={clients ?? '…'} hint={<Link className="text-[var(--brand)] hover:underline" to="/clients">View all</Link>} />
+        <StatCard label="Invoiced this month" value={month ? <Money paise={month.invoicedPaise} /> : <Skeleton className="h-7 w-28" />} />
+        <StatCard label="Received this month" value={month ? <Money paise={month.receivedPaise} /> : <Skeleton className="h-7 w-28" />} tone="good" />
+        <StatCard label="Pending (FY)" value={year ? <Money paise={year.outstandingPaise} /> : <Skeleton className="h-7 w-28" />} tone="warn" />
+        <StatCard label="Clients" value={clients ?? <Skeleton className="h-7 w-12" />} hint={<Link className="text-[var(--brand)] hover:underline" to="/clients">View all</Link>} />
       </section>
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="font-medium">Collection progress · FY {fy}</span>
-          <span className="text-slate-500">
-            {year ? (
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card title="Last 6 months" className="lg:col-span-2" actions={<LinkButton variant="ghost" to="/reports">Full reports →</LinkButton>}>
+          {!series ? <Skeleton className="h-48" /> : <BarChart data={series} aLabel="Invoiced" bLabel="Received" height={170} />}
+        </Card>
+        <Card title={goal ? 'Monthly goal' : `Collection · FY ${fy}`}>
+          <div className="flex flex-col items-center gap-3 text-center">
+            {goal ? (
               <>
-                <Money paise={year.receivedPaise} /> of <Money paise={year.invoicedPaise} /> received
+                <Ring pct={goalPct} size={140} stroke={13} color={goalPct >= 100 ? '#16a34a' : 'var(--brand)'}>
+                  <span className="text-2xl font-semibold tabular-nums">{goalPct}%</span>
+                  <span className="text-[11px] text-slate-500">of goal</span>
+                </Ring>
+                <p className="text-sm text-slate-600">
+                  {month ? <Money paise={month.receivedPaise} /> : '…'} of <Money paise={goal} /> this month
+                  {goalPct >= 100 && <span className="block font-medium text-green-700">Goal reached 🎉</span>}
+                </p>
               </>
             ) : (
-              '…'
+              <>
+                <Ring pct={collected} size={140} stroke={13} color="#16a34a">
+                  <span className="text-2xl font-semibold tabular-nums">{collected}%</span>
+                  <span className="text-[11px] text-slate-500">collected</span>
+                </Ring>
+                <p className="text-sm text-slate-600">
+                  {year ? (
+                    <>
+                      <Money paise={year.receivedPaise} /> of <Money paise={year.invoicedPaise} />
+                    </>
+                  ) : (
+                    '…'
+                  )}
+                </p>
+                {role === 'ADMIN' && (
+                  <Link to="/settings" className="text-xs text-[var(--brand)] hover:underline">
+                    Set a monthly goal in Settings
+                  </Link>
+                )}
+              </>
             )}
-          </span>
-        </div>
-        <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuenow={collected} aria-valuemin={0} aria-valuemax={100}>
-          <div className="h-full rounded-full bg-gradient-to-r from-[var(--brand)] to-green-500 transition-all duration-700" style={{ width: `${collected}%` }} />
-        </div>
-        <div className="mt-1 text-right text-xs text-slate-500">{collected}% collected</div>
-      </Card>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card title="This week" className="lg:col-span-1">
+          <dl className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <dt className="text-slate-500">Invoiced (last 7 days)</dt>
+              <dd className="font-semibold">{week ? <Money paise={week.invoicedPaise} /> : '…'}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-slate-500">Received (last 7 days)</dt>
+              <dd className="font-semibold text-green-700">{week ? <Money paise={week.receivedPaise} /> : '…'}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-slate-500">Invoices issued, all time</dt>
+              <dd className="font-semibold">{numbered ?? '…'}</dd>
+            </div>
+          </dl>
+        </Card>
+        <Card title="Recent activity" className="lg:col-span-2" actions={role === 'ADMIN' ? <LinkButton variant="ghost" to="/settings/activity">All activity →</LinkButton> : undefined}>
+          {!activity ? (
+            <SkeletonRows rows={3} />
+          ) : activity.length === 0 ? (
+            <Empty>No activity yet. Create your first invoice to get started.</Empty>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {activity.map((e) => (
+                <li key={e.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  {e.action === 'DELETE' ? (
+                    <span className="truncate">{describeAudit(e)}</span>
+                  ) : (
+                    <Link to={`/invoices/${e.invoiceId}`} className="truncate hover:text-[var(--brand)] hover:underline">
+                      {describeAudit(e)}
+                    </Link>
+                  )}
+                  <span className="shrink-0 text-xs text-slate-500">{timeAgo(e.at?.toDate())}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <TasksWidget today={today} />
@@ -125,16 +373,17 @@ export default function Home() {
 
       <Card title="Overdue invoices" actions={<LinkButton variant="ghost" to="/invoices">All invoices →</LinkButton>}>
         {!overdue ? (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <SkeletonRows rows={2} />
         ) : overdue.length === 0 ? (
-          <Empty>Nothing overdue. 🎉</Empty>
+          <Empty icon={<span className="text-xl">🎉</span>}>Nothing overdue. Great work!</Empty>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {overdue.map((r) => (
+            {overdue.slice(0, 5).map((r) => (
               <li key={r.id}>
                 <Link to={`/invoices/${r.id}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 py-3 transition hover:bg-slate-50">
-                  <span>
-                    <span className="font-medium">{r.number}</span> <span className="text-sm text-slate-500">· {r.client.name} · due {r.dueDate}</span>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{r.number}</span> <span className="text-sm text-slate-500">· {r.client.name}</span>
+                    <OverdueBadge dueDate={r.dueDate} today={today} status={r.status} />
                   </span>
                   <Money paise={r.totals.grandTotalPaise} className="font-semibold text-red-700" />
                 </Link>
@@ -144,6 +393,20 @@ export default function Home() {
         )}
       </Card>
     </div>
+  );
+}
+
+function TodayTile({ to, label, value, hint, tone }: { to: string; label: string; value: string; hint: string; tone: 'red' | 'amber' | 'blue' | 'green' }) {
+  const bar = { red: 'bg-red-500', amber: 'bg-amber-500', blue: 'bg-blue-500', green: 'bg-green-500' }[tone];
+  return (
+    <Link to={to} className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-surface p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <span className={`absolute inset-y-0 left-0 w-1 ${bar}`} aria-hidden="true" />
+      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-1.5 text-2xl font-semibold tabular-nums">{value}</div>
+      <div className="mt-1 truncate text-xs text-slate-500" title={hint}>
+        {hint}
+      </div>
+    </Link>
   );
 }
 

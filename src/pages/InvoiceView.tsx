@@ -1,17 +1,19 @@
-import { writeBatch } from 'firebase/firestore';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useActor, useAuth } from '../auth';
-import { Alert, Button, Card, Field, LinkButton, Loading, Money, PageHeader, StatusBadge, errorMessage } from '../components/ui';
+import { Alert, Button, Card, Field, LinkButton, Loading, Money, PageHeader, StatusBadge, Tip, errorMessage } from '../components/ui';
 import { DownloadIcon, EyeIcon, MailIcon, TrashIcon, WhatsAppIcon } from '../components/icons';
 import { useDialog } from '../components/Dialog';
-import { appendAudit, listInvoiceAudit, type AuditEntry } from '../data/audit';
+import { listInvoiceAudit, timeAgo, type AuditEntry } from '../data/audit';
 import { cancelInvoice, deleteInvoices, getInvoice, issueInvoice, recordPayment, type InvoiceRow } from '../data/invoices';
 import { db } from '../firebase';
 import { todayIST } from '../lib/fy';
 import { formatPaise, paiseToInput, parseRupeesToPaise } from '../lib/money';
 import { PAYMENT_MODES, type FirmSettings, type PaymentMode } from '../lib/types';
 import { normaliseWhatsapp } from '../lib/validation';
+import { checkPop, confetti } from '../lib/celebrate';
+import { daysBetween, type MessageKind } from '../lib/messages';
+import { sendDocument, type Channel } from '../lib/send';
 import { useSettings } from '../settings-context';
 
 type Panel = '' | 'payment' | 'cancel';
@@ -19,17 +21,6 @@ type Panel = '' | 'payment' | 'cancel';
 async function makePdf(inv: InvoiceRow, settings: FirmSettings) {
   const { generateInvoicePdf } = await import('../pdf/generate');
   return generateInvoicePdf(inv, settings);
-}
-
-function messageText(inv: InvoiceRow, settings: FirmSettings): string {
-  const firm = inv.firm ?? settings;
-  const lines = [
-    `Dear ${inv.client.contactPerson || inv.client.name},`,
-    `Please find attached invoice ${inv.number} dated ${inv.invoiceDate} for Rs. ${formatPaise(inv.totals.grandTotalPaise)}, due by ${inv.dueDate}.`,
-  ];
-  if (firm.bank.upiId) lines.push(`UPI: ${firm.bank.upiId}`);
-  lines.push(`Thank you,`, firm.name);
-  return lines.join('\n');
 }
 
 export default function InvoiceView() {
@@ -84,6 +75,9 @@ export default function InvoiceView() {
   const issuedLike = inv.status !== 'DRAFT';
   const wa = normaliseWhatsapp(inv.client.whatsapp);
   const canDelete = role === 'ADMIN' || inv.status === 'DRAFT';
+  const overdueDays = inv.status === 'ISSUED' ? Math.max(0, daysBetween(inv.dueDate, todayIST())) : 0;
+  const reminded = audit.find((a) => a.details?.kind === 'reminder');
+  const lastReminder = reminded ? timeAgo(reminded.at?.toDate()) : '';
 
   async function remove() {
     const ok = await dialog.confirm({
@@ -165,54 +159,24 @@ export default function InvoiceView() {
    * allowed) the PDF is downloaded and a ready-written email or WhatsApp chat
    * opens for the user to attach it. Works even without a saved email/number.
    */
-  const send = async (channel: 'email' | 'whatsapp') => {
-    if (!(await confirmIssueIfDraft())) return;
-    act(channel, async () => {
-      const current = await readyInvoice();
-      const waNumber = normaliseWhatsapp(current.client.whatsapp);
-      const firmName = (current.firm ?? settings).name;
-      const subject = `Invoice ${current.number} from ${firmName}`;
-      const text = messageText(current, settings);
-      const { blob, fileName } = await makePdf(current, settings);
-      const file = new File([blob], fileName, { type: 'application/pdf' });
-      let method = 'download';
-      if (navigator.canShare?.({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file], title: subject, text });
-          method = 'share-sheet';
-        } catch (e) {
-          if ((e as Error).name === 'AbortError') return;
-          // e.g. NotAllowedError when the browser blocks sharing: fall back to download.
-        }
-      }
-      if (method === 'download') {
-        const { downloadBlob } = await import('../pdf/generate');
-        downloadBlob(blob, fileName);
-      }
-      const link =
-        channel === 'whatsapp'
-          ? `https://wa.me/${waNumber ?? ''}?text=${encodeURIComponent(text)}`
-          : `mailto:${encodeURIComponent(current.client.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
-              `${text}\n\n(Invoice PDF attached: ${fileName})`,
-            )}`;
-      setOpenLink({ channel, href: link });
-      if (method === 'download') {
-        if (channel === 'whatsapp') window.open(link, '_blank', 'noopener');
-        else window.location.href = link;
-      }
-      const batch = writeBatch(db);
-      appendAudit(db, batch, actor, current.id, current.number ?? null, channel === 'email' ? 'SEND_EMAIL' : 'SEND_WHATSAPP', {
-        channel,
-        recipient: channel === 'email' ? current.client.email : waNumber ? `+${waNumber}` : '',
-        method,
-      });
-      await batch.commit();
-      if (method === 'share-sheet') return 'Shared with the PDF attached.';
-      return channel === 'email'
-        ? `PDF downloaded (${fileName}). Your email app opened with the message ready: attach the PDF and send.`
-        : `PDF downloaded (${fileName}). WhatsApp opened${waNumber ? ` for +${waNumber}` : ' (choose the contact)'}: attach the PDF in the chat and send.`;
+  const send = async (channel: Channel, kind: MessageKind = 'invoice') => {
+    if (kind === 'invoice' && !(await confirmIssueIfDraft())) return;
+    act(`${kind}-${channel}`, async () => {
+      const current = kind === 'invoice' ? await readyInvoice() : inv!;
+      const res = await sendDocument({ db, actor, inv: current, settings, channel, kind });
+      if (!res) return;
+      setOpenLink({ channel, href: res.href });
+      return res.message;
     });
   };
+
+  const downloadReceipt = () =>
+    act('receipt-pdf', async () => {
+      const { generateReceiptPdf, downloadBlob } = await import('../pdf/generate');
+      const { blob, fileName } = await generateReceiptPdf(inv!, settings);
+      downloadBlob(blob, fileName);
+      return `Receipt downloaded: ${fileName}`;
+    });
 
   return (
     <div className="space-y-4">
@@ -239,7 +203,11 @@ export default function InvoiceView() {
                       confirmText: 'Create invoice',
                     })
                   )
-                    act('issue', async () => `Invoice ${await issueInvoice(db, actor, inv.id, settings)} created. Send it to your client below.`);
+                    act('issue', async () => {
+                      const n = await issueInvoice(db, actor, inv.id, settings);
+                      checkPop();
+                      return `Invoice ${n} created. Send it to your client below.`;
+                    });
                 }}
               >
                 Create invoice
@@ -263,10 +231,10 @@ export default function InvoiceView() {
           </Button>
           {inv.status !== 'CANCELLED' && (
             <>
-              <Button variant="secondary" className="gap-2 py-3" busy={busy === 'email'} onClick={() => send('email')}>
+              <Button variant="secondary" className="gap-2 py-3" busy={busy === 'invoice-email'} onClick={() => send('email')}>
                 <MailIcon /> <span className="truncate">Send by email</span>
               </Button>
-              <Button variant="secondary" className="gap-2 !border-green-600 py-3 !text-green-700" busy={busy === 'whatsapp'} onClick={() => send('whatsapp')}>
+              <Button variant="secondary" className="gap-2 !border-green-600 py-3 !text-green-700" busy={busy === 'invoice-whatsapp'} onClick={() => send('whatsapp')}>
                 <WhatsAppIcon /> Send to WhatsApp
               </Button>
             </>
@@ -284,7 +252,44 @@ export default function InvoiceView() {
               </a>
             </p>
           )}
-        {(inv.status === 'ISSUED' || canDelete) && (
+        {inv.status === 'ISSUED' && (
+          <div className={`mt-4 rounded-xl border p-3 ${overdueDays > 0 ? 'border-red-200 bg-red-50/60' : 'border-slate-200 bg-slate-50'}`}>
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+              <span className="font-medium">Payment reminder</span>
+              {overdueDays > 0 ? (
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">{overdueDays} days overdue</span>
+              ) : (
+                <span className="text-xs text-slate-500">Due {inv.dueDate}</span>
+              )}
+              {lastReminder && <span className="text-xs text-slate-500">· last reminded {lastReminder}</span>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" className="gap-2 !border-green-600 !text-green-700" busy={busy === 'reminder-whatsapp'} onClick={() => send('whatsapp', 'reminder')}>
+                <WhatsAppIcon size={16} /> Remind on WhatsApp
+              </Button>
+              <Button variant="secondary" className="gap-2" busy={busy === 'reminder-email'} onClick={() => send('email', 'reminder')}>
+                <MailIcon size={16} /> Remind by email
+              </Button>
+            </div>
+          </div>
+        )}
+        {inv.status === 'PAID' && inv.payment && (
+          <div className="mt-4 rounded-xl border border-green-200 bg-green-50/60 p-3">
+            <div className="mb-2 text-sm font-medium text-green-800">Payment receipt</div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" className="gap-2" busy={busy === 'receipt-pdf'} onClick={downloadReceipt}>
+                <DownloadIcon size={16} /> Download receipt
+              </Button>
+              <Button variant="secondary" className="gap-2 !border-green-600 !text-green-700" busy={busy === 'receipt-whatsapp'} onClick={() => send('whatsapp', 'receipt')}>
+                <WhatsAppIcon size={16} /> Send receipt on WhatsApp
+              </Button>
+              <Button variant="secondary" className="gap-2" busy={busy === 'receipt-email'} onClick={() => send('email', 'receipt')}>
+                <MailIcon size={16} /> Email receipt
+              </Button>
+            </div>
+          </div>
+        )}
+        {(inv.status === 'ISSUED' || canDelete || issuedLike) && (
           <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
             {inv.status === 'ISSUED' && (
               <Button variant="ghost" onClick={() => setPanel(panel === 'payment' ? '' : 'payment')}>
@@ -295,6 +300,11 @@ export default function InvoiceView() {
               <Button variant="ghost" className="!text-red-600" onClick={() => setPanel(panel === 'cancel' ? '' : 'cancel')}>
                 Cancel invoice
               </Button>
+            )}
+            {issuedLike && (
+              <LinkButton variant="ghost" to={`/invoices/new?from=${inv.id}`}>
+                ⧉ Duplicate
+              </LinkButton>
             )}
             {canDelete && (
               <Button variant="ghost" className="gap-2 !text-red-600 sm:ml-auto" busy={busy === 'delete'} onClick={remove}>
@@ -313,7 +323,8 @@ export default function InvoiceView() {
             act('pay', async () => {
               await recordPayment(db, actor, inv, p);
               setPanel('');
-              return 'Payment recorded; invoice marked PAID.';
+              confetti();
+              return 'Payment recorded; invoice marked PAID. 🎉 You can now send the client a receipt.';
             })
           }
         />
@@ -550,7 +561,14 @@ function PaymentPanel({
         <Field label="Amount received (₹)">
           <input inputMode="decimal" required value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
-        <Field label="TDS deducted (₹)">
+        <Field
+          label="TDS deducted (₹)"
+          hint={
+            <span className="inline-flex items-center gap-1">
+              If the client cut TDS <Tip label="What is TDS?">TDS (Tax Deducted at Source): the client pays you less and deposits that part with the Income Tax department in your PAN. Enter it here so the invoice counts as fully settled; it shows in your Form 26AS.</Tip>
+            </span>
+          }
+        >
           <input inputMode="decimal" value={tds} onChange={(e) => setTds(e.target.value)} />
         </Field>
         <Field label="Reference (UTR / cheque no.)">

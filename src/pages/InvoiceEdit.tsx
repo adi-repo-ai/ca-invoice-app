@@ -4,7 +4,7 @@ import { useActor } from '../auth';
 import { ClientFields } from '../components/ClientFields';
 import { ClientPicker } from '../components/ClientPicker';
 import { useDialog } from '../components/Dialog';
-import { Alert, Button, Card, Field, Loading, Money, PageHeader, Switch, errorMessage } from '../components/ui';
+import { Alert, Button, Card, Field, Loading, Money, PageHeader, Switch, Tip, errorMessage } from '../components/ui';
 import { createClient, getClient, type ClientInput, type ClientRow } from '../data/clients';
 import { clientSnapshot, createDraft, getInvoice, issueInvoice, updateDraft, type DraftInput } from '../data/invoices';
 import { db } from '../firebase';
@@ -52,7 +52,7 @@ export default function InvoiceEdit() {
   const { settings, saved } = useSettings();
   const services = settings.sacCodes;
 
-  const [loading, setLoading] = useState(Boolean(id) || params.has('client'));
+  const [loading, setLoading] = useState(Boolean(id) || params.has('client') || params.has('from'));
   // Client: pick a saved one, or type details (optionally saving them to the list).
   const [mode, setMode] = useState<ClientMode>('saved');
   const [client, setClient] = useState<ClientRow | null>(null);
@@ -83,10 +83,12 @@ export default function InvoiceEdit() {
   useEffect(() => {
     (async () => {
       try {
-        if (id) {
-          const inv = await getInvoice(db, id);
+        // Editing a draft, or duplicating any invoice (?from=<id>) into a new draft.
+        const sourceId = id ?? params.get('from');
+        if (sourceId) {
+          const inv = await getInvoice(db, sourceId);
           if (!inv) return setError('Invoice not found');
-          if (inv.status !== 'DRAFT') return navigate(`/invoices/${id}`, { replace: true });
+          if (id && inv.status !== 'DRAFT') return navigate(`/invoices/${id}`, { replace: true });
           const c = inv.clientId ? await getClient(db, inv.clientId) : null;
           if (c) {
             setMode('saved');
@@ -245,7 +247,7 @@ export default function InvoiceEdit() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title={id ? 'Edit draft invoice' : 'New invoice'} />
+      <PageHeader title={id ? 'Edit draft invoice' : params.get('from') ? 'New invoice (copy)' : 'New invoice'} subtitle={!id && params.get('from') ? 'Copied from an earlier invoice: check the details, then save or create.' : undefined} />
       {error && <Alert>{error}</Alert>}
 
       <Card title="1. Client">
@@ -272,7 +274,17 @@ export default function InvoiceEdit() {
             const amount = parsed.preview.items[i]?.amountPaise ?? 0;
             return (
               <div key={i} className="grid grid-cols-2 gap-2 rounded-md border border-slate-200 p-3 sm:grid-cols-12 sm:items-end">
-                <Field label="Service" className="col-span-2 sm:col-span-4">
+                <Field
+                  label="Service"
+                  className="col-span-2 sm:col-span-4"
+                  hint={
+                    i === 0 ? (
+                      <span className="inline-flex items-center gap-1">
+                        Fills description, SAC and price <Tip label="What is SAC?">SAC (Services Accounting Code) is the GST code for a type of service, e.g. 998231 for tax consulting. Manage your list and default prices in Settings → Services you bill.</Tip>
+                      </span>
+                    ) : undefined
+                  }
+                >
                   <select value={r.service} onChange={(e) => chooseService(i, e.target.value)}>
                     <option value="">Choose a service…</option>
                     {services.map((c, k) => (

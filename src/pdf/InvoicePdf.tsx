@@ -4,37 +4,10 @@
 //
 // The title is always "INVOICE". When GST is switched off in Settings there are
 // no tax lines; when it is on a single "GST @ x%" line is shown.
-import { Document, Font, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
-import type { Style } from '@react-pdf/types';
+import { Document, Image, Link, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import { formatPaise } from '../lib/money';
+import { INK, LINE, Lines, MUTED, fmtDate, pct, rs } from './common';
 import type { FirmSettings, FirmSnapshot, Invoice } from '../lib/types';
-
-const rs = (p: number) => `Rs. ${formatPaise(p)}`;
-const pct = (bp: number) => `${bp / 100}%`;
-const fmtDate = (iso: string) => {
-  const [y, m, d] = iso.split('-');
-  return d && m && y ? `${d}/${m}/${y}` : iso;
-};
-
-// Never hyphenate words (e.g. firm names) when wrapping.
-Font.registerHyphenationCallback((word) => [word]);
-
-/** Multi-line text as one Text per line (a raw "\n" renders with a large gap). */
-function Lines({ text, style }: { text: string; style?: Style | Style[] }) {
-  return (
-    <>
-      {text.split('\n').map((line, i) => (
-        <Text key={i} style={style}>
-          {line || ' '}
-        </Text>
-      ))}
-    </>
-  );
-}
-
-const INK = '#111827';
-const MUTED = '#4b5563';
-const LINE = '#e5e7eb';
 
 function makeStyles(brand: string) {
   return StyleSheet.create({
@@ -97,17 +70,25 @@ function makeStyles(brand: string) {
     // ---- footer ----
     footer: { position: 'absolute', bottom: 22, left: 36, right: 36, flexDirection: 'row', justifyContent: 'space-between', fontSize: 7.5, color: MUTED },
     band: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 12, backgroundColor: brand },
-    watermark: { position: 'absolute', top: 330, left: 60, fontSize: 80, color: '#dc2626', opacity: 0.12, transform: 'rotate(-30deg)', fontFamily: 'Helvetica-Bold' },
+    watermark: { position: 'absolute', top: 330, left: 0, right: 0, textAlign: 'center', fontSize: 80, opacity: 0.12, transform: 'rotate(-30deg)', fontFamily: 'Helvetica-Bold' },
   });
 }
+
+// Faint diagonal stamp across the page for paid, draft and cancelled invoices.
+const WATERMARK: Partial<Record<Invoice['status'], { text: string; color: string }>> = {
+  PAID: { text: 'PAID', color: '#16a34a' },
+  DRAFT: { text: 'DRAFT', color: '#6b7280' },
+  CANCELLED: { text: 'CANCELLED', color: '#dc2626' },
+};
 
 export interface InvoicePdfProps {
   invoice: Invoice;
   settings: FirmSettings; // for logo, signature, brand colour and (fallback) firm details
   qrDataUrl?: string | null; // UPI payment QR code
+  upiLink?: string | null; // same link, clickable in PDF viewers
 }
 
-export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProps) {
+export function InvoicePdf({ invoice: inv, settings, qrDataUrl, upiLink }: InvoicePdfProps) {
   const s = makeStyles(settings.brandColor);
   const firm: FirmSnapshot = inv.firm ?? settings;
   const t = inv.totals;
@@ -128,7 +109,11 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProp
   return (
     <Document title={inv.number ?? 'Invoice'} author={firm.name} creator={firm.name}>
       <Page size="A4" style={s.page}>
-        {inv.status === 'CANCELLED' && <Text style={s.watermark} fixed>CANCELLED</Text>}
+        {WATERMARK[inv.status] && (
+          <Text style={[s.watermark, { color: WATERMARK[inv.status]!.color }]} fixed>
+            {WATERMARK[inv.status]!.text}
+          </Text>
+        )}
 
         {/* Header: firm on the left, invoice title + details on the right */}
         <View style={s.header}>
@@ -274,7 +259,14 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl }: InvoicePdfProp
                     {firm.bank.branch ? <Text style={s.detailLine}>Branch: {firm.bank.branch}</Text> : null}
                     {firm.bank.upiId ? (
                       <Text style={[s.detailLine, { marginTop: 3 }]}>
-                        UPI: <Text style={[s.bold, { color: INK }]}>{firm.bank.upiId}</Text>
+                        UPI:{' '}
+                        {upiLink ? (
+                          <Link src={upiLink} style={[s.bold, { color: INK, textDecoration: 'none' }]}>
+                            {firm.bank.upiId}
+                          </Link>
+                        ) : (
+                          <Text style={[s.bold, { color: INK }]}>{firm.bank.upiId}</Text>
+                        )}
                       </Text>
                     ) : null}
                   </View>
