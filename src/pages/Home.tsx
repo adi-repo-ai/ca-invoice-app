@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { useDialog } from '../components/Dialog';
 import { BarChart, Ring, shortRupees, type BarPoint } from '../components/Charts';
-import { Button, Card, Empty, LinkButton, Money, OverdueBadge, Skeleton, SkeletonRows, errorMessage } from '../components/ui';
+import { Button, Card, Empty, LinkButton, Money, OverdueBadge, Skeleton, SkeletonRows, Switch, errorMessage } from '../components/ui';
 import { describeAudit, listRecentAudit, timeAgo, type AuditEntry } from '../data/audit';
 import { countClients } from '../data/clients';
 import { addHome, deleteHome, listHome, updateHome, type HomeItem, type HomeKind } from '../data/home';
@@ -140,12 +140,20 @@ export default function Home() {
   // Milestones: highest reached, until dismissed.
   const countMilestone = numbered ? [...MILESTONES].reverse().find((m) => numbered >= m) : undefined;
   const moneyMilestone = year ? [...MONEY_MILESTONES].reverse().find((m) => year.receivedPaise >= m) : undefined;
-  const milestone =
-    moneyMilestone && !readFlag(`ms-money-${fy}-${moneyMilestone}`)
-      ? { key: `ms-money-${fy}-${moneyMilestone}`, text: `₹${shortRupees(moneyMilestone)} collected in FY ${fy}!`, sub: 'A big step for the firm. Keep it going.' }
-      : countMilestone && countMilestone > 1 && !readFlag(`ms-count-${countMilestone}`)
-        ? { key: `ms-count-${countMilestone}`, text: `${countMilestone} invoices issued!`, sub: 'Every one numbered, logged and backed by the audit trail.' }
-        : null;
+  const milestone = moneyMilestone
+    ? { text: `₹${shortRupees(moneyMilestone)} collected in FY ${fy}!`, sub: 'A big step for the firm. Keep it going.' }
+    : countMilestone && countMilestone > 1
+      ? { text: `${countMilestone} invoices issued!`, sub: 'Every one numbered, logged and backed by the audit trail.' }
+      : null;
+  const milestoneHidden = readFlag('milestoneHidden');
+  const toggleMilestone = (show: boolean) => {
+    try {
+      localStorage.setItem('milestoneHidden', show ? '0' : '1');
+    } catch {
+      /* ignore */
+    }
+    bump((n) => n + 1);
+  };
 
   const nudges: { text: ReactNode; to: string }[] = [
     ...drafts.map((d) => ({ text: <>Draft for <b>{d.client.name}</b> is over a week old: finish or delete it?</>, to: `/invoices/${d.id}` })),
@@ -189,27 +197,32 @@ export default function Home() {
         </div>
       </section>
 
-      {milestone && (
-        <div className="animate-fade-in flex items-center gap-4 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 p-4 shadow-sm">
-          <span className="text-3xl" aria-hidden="true">
-            🏆
-          </span>
-          <div className="flex-1">
-            <div className="font-semibold text-amber-900">{milestone.text}</div>
-            <div className="text-sm text-amber-800/80">{milestone.sub}</div>
+      {milestone &&
+        (milestoneHidden ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-amber-200 px-4 py-2 text-sm text-slate-500">
+            <span>
+              <span aria-hidden="true">🏆</span> Milestone banner hidden
+            </span>
+            <span className="flex items-center gap-2 text-xs">
+              Show
+              <Switch checked={false} onChange={toggleMilestone} label="Show milestone banner" />
+            </span>
           </div>
-          <button
-            type="button"
-            className="rounded-lg px-2 py-1 text-sm text-amber-800 hover:bg-amber-100"
-            onClick={() => {
-              setFlag(milestone.key);
-              bump((n) => n + 1);
-            }}
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+        ) : (
+          <div className="animate-fade-in flex items-center gap-4 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 p-4 shadow-sm">
+            <span className="text-3xl" aria-hidden="true">
+              🏆
+            </span>
+            <div className="flex-1">
+              <div className="font-semibold text-amber-900">{milestone.text}</div>
+              <div className="text-sm text-amber-800/80">{milestone.sub}</div>
+            </div>
+            <span className="flex items-center gap-2 text-xs text-amber-800">
+              Show
+              <Switch checked onChange={toggleMilestone} label="Show milestone banner" />
+            </span>
+          </div>
+        ))}
 
       {showSetup && (
         <Card
