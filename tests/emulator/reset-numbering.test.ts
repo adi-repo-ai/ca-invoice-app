@@ -26,6 +26,8 @@ describe('reset-numbering function', () => {
   it('only an ADMIN can reset, and only once no numbered invoice of the year is left', async () => {
     const db = adminDb();
     const fy = currentFy();
+    // Start clean: other test files may have left issued invoices behind.
+    await db.recursiveDelete(db.collection('invoices'));
     await db.doc(`counters/${fy}`).set({ last: 3, lastInvoiceId: 'i3', updatedAt: new Date() });
     await db.doc('invoices/i3').set({ fy, seq: 3, status: 'CANCELLED' });
     await db.doc('invoices/d1').set({ status: 'DRAFT' }); // drafts don't block a reset

@@ -77,3 +77,29 @@ export function postHandler(fn: (req: Request) => Promise<unknown>) {
     }
   };
 }
+
+/**
+ * Per-person permissions carried in the token next to `role`:
+ *   fin: can see revenue totals, reports, CSV export and backup
+ *   pay: can record payments, send receipts and client statements
+ * Accounts made before these flags existed keep what they had: ADMINs see
+ * revenue, everyone may record payments.
+ */
+export function perms(claims: Record<string, unknown>): { fin: boolean; pay: boolean } {
+  const role = claims.role;
+  if (role !== 'ADMIN' && role !== 'STAFF') return { fin: false, pay: false };
+  return {
+    fin: typeof claims.fin === 'boolean' ? claims.fin : role === 'ADMIN',
+    pay: typeof claims.pay === 'boolean' ? claims.pay : true,
+  };
+}
+
+/** An owner is an ADMIN who can also see revenue (e.g. the firm's proprietor). */
+export function isOwner(claims: Record<string, unknown> | undefined): boolean {
+  return Boolean(claims && claims.role === 'ADMIN' && perms(claims).fin);
+}
+
+/** Starting permissions for a newly added person (an owner can change them later). */
+export function defaultPerms(role: Role): { fin: boolean; pay: boolean } {
+  return { fin: false, pay: role === 'STAFF' };
+}

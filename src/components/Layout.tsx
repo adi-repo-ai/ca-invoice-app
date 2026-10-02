@@ -24,7 +24,7 @@ function Icon({ name }: { name: string }) {
 }
 
 export function Layout() {
-  const { user, role } = useAuth();
+  const { user, role, fin } = useAuth();
   const { settings } = useSettings();
   const location = useLocation();
   const navigate = useNavigate();
@@ -63,7 +63,7 @@ export function Layout() {
     { to: '/', label: 'Home', icon: 'home', end: true },
     { to: '/invoices', label: 'Invoices', icon: 'invoices' },
     { to: '/clients', label: 'Clients', icon: 'clients' },
-    { to: '/reports', label: 'Reports', icon: 'reports' },
+    ...(fin ? [{ to: '/reports', label: 'Reports', icon: 'reports' }] : []),
     ...(role === 'ADMIN' ? [{ to: '/settings', label: 'Settings', icon: 'settings' }] : []),
   ];
   const linkCls = ({ isActive }: { isActive: boolean }) =>

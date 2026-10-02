@@ -41,7 +41,7 @@ describe('claim-admin function', () => {
 
   it('makes the first user ADMIN exactly once', async () => {
     expect((await call(CODE, firstToken)).status).toBe(200);
-    expect((await adminAuth().getUser(firstUid)).customClaims?.role).toBe('ADMIN');
+    expect((await adminAuth().getUser(firstUid)).customClaims).toEqual({ role: 'ADMIN', fin: true, pay: true });
     expect((await adminDb().doc(`users/${firstUid}`).get()).data()?.role).toBe('ADMIN');
     // Nobody else can use it afterwards, even with the right code.
     expect((await call(CODE, secondToken)).status).toBe(409);

@@ -25,7 +25,8 @@ export default function Clients() {
   const [busy, setBusy] = useState('');
   const [tag, setTag] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  const isAdmin = role === 'ADMIN';
   const { settings } = useSettings();
 
   // Searching always uses A–Z (name prefix search).
@@ -169,12 +170,16 @@ export default function Clients() {
         actions={
           <>
             <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => importFile(e.target.files?.[0])} aria-label="Import clients file" />
-            <Button variant="ghost" onClick={downloadTemplate}>
-              CSV template
-            </Button>
-            <Button variant="secondary" busy={busy === 'import'} onClick={() => fileRef.current?.click()}>
-              Import CSV
-            </Button>
+            {isAdmin && (
+              <>
+                <Button variant="ghost" onClick={downloadTemplate}>
+                  CSV template
+                </Button>
+                <Button variant="secondary" busy={busy === 'import'} onClick={() => fileRef.current?.click()}>
+                  Import CSV
+                </Button>
+              </>
+            )}
             <LinkButton to="/clients/new">+ New client</LinkButton>
           </>
         }
@@ -251,9 +256,11 @@ export default function Clients() {
                   <LinkButton variant="secondary" to={`/clients/${c.id}`} className="!px-3 !py-1.5">
                     View
                   </LinkButton>
-                  <Button variant="ghost" className="!px-3 !py-1.5 !text-red-600" busy={busy === c.id} onClick={() => remove(c)}>
-                    Delete
-                  </Button>
+                  {isAdmin && (
+                    <Button variant="ghost" className="!px-3 !py-1.5 !text-red-600" busy={busy === c.id} onClick={() => remove(c)}>
+                      Delete
+                    </Button>
+                  )}
                 </div>
               </li>
             ))}

@@ -30,7 +30,7 @@ describe('activate function (Google sign-in allow-list)', () => {
   it('gives an invited email its role exactly once', async () => {
     const res = await handler(post('activate', {}, invitedToken));
     expect(res.status).toBe(200);
-    expect((await adminAuth().getUser(invitedUid)).customClaims?.role).toBe('ADMIN');
+    expect((await adminAuth().getUser(invitedUid)).customClaims).toEqual({ role: 'ADMIN', fin: false, pay: false });
     expect((await adminDb().doc(`users/${invitedUid}`).get()).data()?.role).toBe('ADMIN');
     expect((await adminDb().doc('invites/partner@gmail.com').get()).exists).toBe(false);
   });

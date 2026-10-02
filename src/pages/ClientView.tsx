@@ -11,6 +11,7 @@ import { db } from '../firebase';
 import { fyForDate, fyRange, todayIST } from '../lib/fy';
 import { formatPaise } from '../lib/money';
 import { deliver, type Channel } from '../lib/send';
+import { useAuth } from '../auth';
 import { useSettings } from '../settings-context';
 
 /** Billed / received / balance for numbered, non-cancelled invoices. */
@@ -28,6 +29,7 @@ function summarise(rows: InvoiceRow[]) {
 export default function ClientView() {
   const { id } = useParams();
   const { settings } = useSettings();
+  const { role, pay } = useAuth();
   const [client, setClient] = useState<ClientRow | null>(null);
   const [rows, setRows] = useState<InvoiceRow[] | null>(null);
   const [cursor, setCursor] = useState<DocumentSnapshot | null>(null);
@@ -141,23 +143,25 @@ export default function ClientView() {
               Edit
             </LinkButton>
             <LinkButton to={`/invoices/new?client=${client.id}`}>New invoice</LinkButton>
-            <Button
-              variant="danger"
-              busy={deleting}
-              onClick={async () => {
-                if (!(await dialog.confirm({ title: `Delete ${client.name}?`, message: 'They will be removed from your client list. Existing invoices are kept unchanged.', confirmText: 'Delete client', danger: true }))) return;
-                setDeleting(true);
-                try {
-                  await deleteClient(db, client.id);
-                  navigate('/clients', { replace: true });
-                } catch (e) {
-                  setError(errorMessage(e));
-                  setDeleting(false);
-                }
-              }}
-            >
-              Delete client
-            </Button>
+            {role === 'ADMIN' && (
+              <Button
+                variant="danger"
+                busy={deleting}
+                onClick={async () => {
+                  if (!(await dialog.confirm({ title: `Delete ${client.name}?`, message: 'They will be removed from your client list. Existing invoices are kept unchanged.', confirmText: 'Delete client', danger: true }))) return;
+                  setDeleting(true);
+                  try {
+                    await deleteClient(db, client.id);
+                    navigate('/clients', { replace: true });
+                  } catch (e) {
+                    setError(errorMessage(e));
+                    setDeleting(false);
+                  }
+                }}
+              >
+                Delete client
+              </Button>
+            )}
           </>
         }
       />
@@ -182,33 +186,35 @@ export default function ClientView() {
         )}
       </Card>
 
-      <Card title="Statement of account">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Stat label="Billed" value={period ? <Money paise={sum.billed} /> : '…'} />
-          <Stat label="Received" value={period ? <Money paise={sum.received} /> : '…'} tone="good" />
-          <Stat label="Balance due" value={period ? <Money paise={sum.balance} /> : '…'} tone={sum.balance > 0 ? 'warn' : 'good'} />
-        </div>
-        <div className="mt-4 grid items-end gap-3 sm:grid-cols-[10rem_10rem_1fr]">
-          <Field label="From">
-            <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
-          </Field>
-          <Field label="To">
-            <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
-          </Field>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" className="gap-2" busy={busy === 'download'} disabled={!period} onClick={() => statement('download')}>
-              <DownloadIcon size={16} /> Download
-            </Button>
-            <Button variant="secondary" className="gap-2 !border-green-600 !text-green-700" busy={busy === 'whatsapp'} disabled={!period} onClick={() => statement('whatsapp')}>
-              <WhatsAppIcon size={16} /> WhatsApp
-            </Button>
-            <Button variant="secondary" className="gap-2" busy={busy === 'email'} disabled={!period} onClick={() => statement('email')}>
-              <MailIcon size={16} /> Email
-            </Button>
+      {pay && (
+        <Card title="Statement of account">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Stat label="Billed" value={period ? <Money paise={sum.billed} /> : '…'} />
+            <Stat label="Received" value={period ? <Money paise={sum.received} /> : '…'} tone="good" />
+            <Stat label="Balance due" value={period ? <Money paise={sum.balance} /> : '…'} tone={sum.balance > 0 ? 'warn' : 'good'} />
           </div>
-        </div>
-        <p className="mt-2 text-xs text-slate-500">A PDF listing every invoice and payment in the period, with a running balance. Default: this financial year to date.</p>
-      </Card>
+          <div className="mt-4 grid items-end gap-3 sm:grid-cols-[10rem_10rem_1fr]">
+            <Field label="From">
+              <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
+            </Field>
+            <Field label="To">
+              <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" className="gap-2" busy={busy === 'download'} disabled={!period} onClick={() => statement('download')}>
+                <DownloadIcon size={16} /> Download
+              </Button>
+              <Button variant="secondary" className="gap-2 !border-green-600 !text-green-700" busy={busy === 'whatsapp'} disabled={!period} onClick={() => statement('whatsapp')}>
+                <WhatsAppIcon size={16} /> WhatsApp
+              </Button>
+              <Button variant="secondary" className="gap-2" busy={busy === 'email'} disabled={!period} onClick={() => statement('email')}>
+                <MailIcon size={16} /> Email
+              </Button>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">A PDF listing every invoice and payment in the period, with a running balance. Default: this financial year to date.</p>
+        </Card>
+      )}
 
       <Card title="Invoice history">
         {!rows ? (

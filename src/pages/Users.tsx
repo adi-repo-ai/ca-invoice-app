@@ -4,7 +4,7 @@ import { callFunction } from '../api';
 import { useAuth } from '../auth';
 import { useDialog } from '../components/Dialog';
 import { SettingsTabs } from '../components/SettingsTabs';
-import { Alert, Button, Card, Empty, Field, Loading, PageHeader, Stat, errorMessage } from '../components/ui';
+import { Alert, Button, Card, Empty, Field, Loading, PageHeader, Stat, Switch, errorMessage } from '../components/ui';
 import { db } from '../firebase';
 import type { Role } from '../lib/types';
 import { isValidEmail } from '../lib/validation';
@@ -16,6 +16,21 @@ interface UserRow {
   role: Role;
   disabled: boolean;
   lastSeenAt?: Timestamp;
+  fin?: boolean; // can see revenue (missing on older records: ADMIN = yes)
+  pay?: boolean; // can record payments / receipts / statements (missing = yes)
+}
+
+/** Effective permissions, matching the server's defaults for older records. */
+function permsOf(u: UserRow): { fin: boolean; pay: boolean } {
+  return { fin: u.fin ?? u.role === 'ADMIN', pay: u.pay ?? true };
+}
+
+/** Plain-language access level shown next to each person. */
+function accessLabel(u: UserRow): { text: string; cls: string } {
+  const p = permsOf(u);
+  if (u.role === 'ADMIN' && p.fin) return { text: 'Owner · full access', cls: 'bg-[var(--brand)] text-white' };
+  if (u.role === 'ADMIN') return { text: p.pay ? 'Admin · no revenue' : 'Admin · no revenue, no payments', cls: 'bg-blue-100 text-blue-800' };
+  return { text: p.pay ? 'Staff · with payments' : 'Staff', cls: 'bg-slate-100 text-slate-700' };
 }
 interface InviteRow {
   email: string;
@@ -37,7 +52,8 @@ function lastSeen(u: UserRow): { active: boolean; text: string } {
 }
 
 export default function Users() {
-  const { user } = useAuth();
+  const { user, role: myRole, fin: myFin } = useAuth();
+  const iAmOwner = myRole === 'ADMIN' && myFin;
   const dialog = useDialog();
   const [rows, setRows] = useState<UserRow[] | null>(null);
   const [invites, setInvites] = useState<InviteRow[]>([]);
@@ -109,7 +125,7 @@ export default function Users() {
           <Field label="Google email address" hint="They sign in with this Google account (e.g. name@gmail.com).">
             <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </Field>
-          <Field label="Role" hint="ADMIN can also change settings and users.">
+          <Field label="Role" hint="New ADMINs start without revenue or payments access; STAFF start with payments. An owner can change this once they have joined.">
             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}>
               <option value="STAFF">STAFF</option>
               <option value="ADMIN">ADMIN</option>
@@ -168,15 +184,45 @@ export default function Users() {
                       />
                     </span>
                     <div className="min-w-0">
-                      <div className="truncate font-medium">
-                        {u.displayName || u.email} {self && <span className="text-xs text-slate-500">(you)</span>}
+                      <div className="flex flex-wrap items-center gap-2 font-medium">
+                        <span className="truncate">{u.displayName || u.email}</span> {self && <span className="text-xs text-slate-500">(you)</span>}
+                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${accessLabel(u).cls}`}>{accessLabel(u).text}</span>
                       </div>
                       <div className="truncate text-sm text-slate-500">
-                        {u.email} · {u.role} · <span className={seen.active ? 'font-medium text-green-700' : u.disabled ? 'text-red-700' : ''}>{seen.text}</span>
+                        {u.email} · <span className={seen.active ? 'font-medium text-green-700' : u.disabled ? 'text-red-700' : ''}>{seen.text}</span>
                       </div>
                     </div>
                   </div>
-                  {!self && (
+                  {!self && iAmOwner && (
+                    <div className="flex w-full flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-slate-50 px-3 py-2 text-sm sm:order-last">
+                      {u.role === 'ADMIN' && (
+                        <label className="flex items-center gap-2">
+                          <Switch
+                            checked={permsOf(u).fin}
+                            label={`Revenue & reports for ${u.email}`}
+                            onChange={async (v) => {
+                              if (v && !(await dialog.confirm({ title: `Give ${u.email} revenue access?`, message: 'They will see revenue totals, reports, CSV export and backup, and become an owner who can change other people\'s access.', confirmText: 'Give access' })))
+                                return;
+                              run(u.uid + 'perm', { action: 'setPerms', uid: u.uid, fin: v, pay: permsOf(u).pay }, `${u.email}: revenue access ${v ? 'on' : 'off'}. They will be asked to sign in again.`);
+                            }}
+                          />
+                          Revenue &amp; reports
+                        </label>
+                      )}
+                      <label className="flex items-center gap-2">
+                        <Switch
+                          checked={permsOf(u).pay}
+                          label={`Payments, receipts & statements for ${u.email}`}
+                          onChange={(v) =>
+                            run(u.uid + 'perm', { action: 'setPerms', uid: u.uid, fin: permsOf(u).fin, pay: v }, `${u.email}: payments, receipts & statements ${v ? 'on' : 'off'}. They will be asked to sign in again.`)
+                          }
+                        />
+                        Payments, receipts &amp; statements
+                      </label>
+                      {busy === u.uid + 'perm' && <span className="text-xs text-slate-500">Saving…</span>}
+                    </div>
+                  )}
+                  {!self && (iAmOwner || !(u.role === 'ADMIN' && permsOf(u).fin)) && (
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="secondary"

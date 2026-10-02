@@ -1,7 +1,9 @@
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../auth';
 
 /** Sub-navigation inside Settings: firm details, users, activity, backup. */
 export function SettingsTabs() {
+  const { fin } = useAuth();
   const cls = ({ isActive }: { isActive: boolean }) =>
     `rounded-md px-3 py-1.5 text-sm font-medium ${isActive ? 'bg-[var(--brand)] text-white' : 'text-slate-700 hover:bg-slate-100'}`;
   return (
@@ -15,9 +17,11 @@ export function SettingsTabs() {
       <NavLink to="/settings/activity" className={cls}>
         Activity
       </NavLink>
-      <NavLink to="/settings/backup" className={cls}>
-        Backup
-      </NavLink>
+      {fin && (
+        <NavLink to="/settings/backup" className={cls}>
+          Backup
+        </NavLink>
+      )}
     </nav>
   );
 }

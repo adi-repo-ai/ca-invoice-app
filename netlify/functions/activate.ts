@@ -3,7 +3,7 @@
 // (Settings → Users), they get that role; otherwise access is refused.
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb } from './_shared/admin';
-import { HttpError, postHandler, requireSignedIn } from './_shared/http';
+import { HttpError, postHandler, requireSignedIn, defaultPerms } from './_shared/http';
 
 export default postHandler(async (req) => {
   const caller = await requireSignedIn(req);
@@ -19,12 +19,14 @@ export default postHandler(async (req) => {
     throw new HttpError(403, `${email} has not been given access. Ask an administrator to add it in Settings → Users.`);
   }
   const role = invite.data()!.role === 'ADMIN' ? 'ADMIN' : 'STAFF';
-  await adminAuth().setCustomUserClaims(caller.uid, { role });
+  const p = defaultPerms(role);
+  await adminAuth().setCustomUserClaims(caller.uid, { role, ...p });
   await db.doc(`users/${caller.uid}`).set(
     {
       email,
       displayName: (caller.name as string | undefined) ?? '',
       role,
+      ...p,
       disabled: false,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: invite.data()!.invitedBy ?? 'invite',

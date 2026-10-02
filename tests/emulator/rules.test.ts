@@ -134,13 +134,14 @@ describe('clients', () => {
     expect(id).toBeTruthy();
   });
 
-  it('rejects malformed GSTIN / PAN; only staff can delete', async () => {
+  it('rejects malformed GSTIN / PAN; only ADMINs can delete', async () => {
     const db = fs(asStaff(env));
     await assertFails(createClient(db, STAFF.uid, { ...TS_CLIENT, gstin: '36AABCU9603R1Z' }));
     await assertFails(createClient(db, STAFF.uid, { ...TS_CLIENT, pan: 'ABC' }));
     await assertFails(deleteDoc(doc(fs(env.unauthenticatedContext()), 'clients/ts')));
     await assertFails(deleteDoc(doc(fs(asNoRole(env)), 'clients/ts')));
-    await assertSucceeds(deleteDoc(doc(db, 'clients/ts'))); // staff can remove a client
+    await assertFails(deleteDoc(doc(db, 'clients/ts'))); // staff cannot remove a client
+    await assertSucceeds(deleteDoc(doc(fs(asAdmin(env)), 'clients/ts')));
   });
 
   it('accepts tags and internal notes within limits', async () => {
@@ -172,7 +173,7 @@ describe('invoices', () => {
   it('issuing still works after the saved client was deleted', async () => {
     const db = fs(asStaff(env));
     const id = await createDraft(db, STAFF, draftInput('ts'), SETTINGS);
-    await deleteDoc(doc(db, 'clients/ts'));
+    await deleteDoc(doc(fs(asAdmin(env)), 'clients/ts')); // an ADMIN removes the client
     await issueInvoice(db, STAFF, id, SETTINGS);
     expect((await getInvoice(db, id))!.client.name).toBe('Telangana Co');
   });
@@ -206,12 +207,13 @@ describe('invoices', () => {
     await assertFails(deleteDoc(ref));
   });
 
-  it('deleting: staff can delete drafts, only ADMIN can delete numbered invoices', async () => {
+  it('deleting: only ADMINs can delete invoices (drafts or numbered)', async () => {
     const staffDb = fs(asStaff(env));
     const draftId = await createDraft(staffDb, STAFF, draftInput('ts'), SETTINGS);
     const draft = (await getInvoice(staffDb, draftId))!;
     await assertFails(deleteDoc(doc(fs(asNoRole(env)), 'invoices', draftId)));
-    await assertSucceeds(deleteInvoices(staffDb, STAFF, [draft]));
+    await assertFails(deleteInvoices(staffDb, STAFF, [draft]));
+    await assertSucceeds(deleteInvoices(fs(asAdmin(env)), ADMIN, [draft]));
     expect(await getInvoice(staffDb, draftId)).toBeNull();
 
     const issued = await issuedInvoice();
@@ -236,6 +238,18 @@ describe('invoices', () => {
     await assertSucceeds(recordPayment(db, STAFF, inv, PAYMENT));
     // PAID is final.
     await assertFails(recordPayment(db, STAFF, { ...inv, status: 'PAID' }, PAYMENT));
+  });
+
+  it('recording a payment needs the payments permission', async () => {
+    // Admin B: ADMIN without revenue or payments access.
+    const adminB = env.authenticatedContext('admin-b', { role: 'ADMIN', email: 'b@example.com', fin: false, pay: false });
+    const inv = await issuedInvoice();
+    await assertFails(recordPayment(fs(adminB), { uid: 'admin-b', email: 'b@example.com' }, inv, PAYMENT));
+    // Staff without the permission are refused too; staff with it (or older accounts without the flag) may.
+    const staffNoPay = env.authenticatedContext('staff-np', { role: 'STAFF', email: 'np@example.com', pay: false });
+    await assertFails(recordPayment(fs(staffNoPay), { uid: 'staff-np', email: 'np@example.com' }, inv, PAYMENT));
+    const staffPay = env.authenticatedContext('staff-p', { role: 'STAFF', email: 'p@example.com', pay: true });
+    await assertSucceeds(recordPayment(fs(staffPay), { uid: 'staff-p', email: 'p@example.com' }, inv, PAYMENT));
   });
 
   it('only ADMIN can cancel, and a reason is required', async () => {

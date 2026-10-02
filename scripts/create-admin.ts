@@ -48,12 +48,14 @@ async function main() {
     uid = u.uid;
     console.log(`Created user ${uid}.`);
   }
-  await auth.setCustomUserClaims(uid, { role: 'ADMIN' });
+  await auth.setCustomUserClaims(uid, { role: 'ADMIN', fin: true, pay: true });
   await adminDb().doc(`users/${uid}`).set(
     {
       email,
       displayName: name,
       role: 'ADMIN',
+      fin: true,
+      pay: true,
       disabled: false,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: 'create-admin-script',

@@ -29,10 +29,10 @@ async function main() {
   } catch {
     uid = (await auth.createUser({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD, displayName: 'Demo Admin' })).uid;
   }
-  await auth.setCustomUserClaims(uid, { role: 'ADMIN' });
+  await auth.setCustomUserClaims(uid, { role: 'ADMIN', fin: true, pay: true });
   const now = FieldValue.serverTimestamp();
   await db.doc(`users/${uid}`).set({
-    email: ADMIN_EMAIL, displayName: 'Demo Admin', role: 'ADMIN', disabled: false,
+    email: ADMIN_EMAIL, displayName: 'Demo Admin', role: 'ADMIN', fin: true, pay: true, disabled: false,
     createdAt: now, createdBy: 'seed', updatedAt: now, updatedBy: 'seed',
   });
 

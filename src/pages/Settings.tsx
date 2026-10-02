@@ -105,7 +105,7 @@ function validate(s: FirmSettings, gstRate: string): Errors {
 }
 
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, fin } = useAuth();
   const { settings, saved, reload } = useSettings();
   const [s, setS] = useState<FirmSettings>(settings);
   const [gstRate, setGstRate] = useState(String(settings.gstRateBp / 100));
@@ -338,9 +338,11 @@ export default function Settings() {
 
       <Card title="Goals & messages">
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Monthly collection goal (₹)" error={errors.goal} hint="Shown as a progress ring on Home. Leave blank to hide.">
-            <input inputMode="decimal" placeholder="e.g. 200000" value={goal} onChange={(e) => setGoal(e.target.value)} />
-          </Field>
+          {fin && (
+            <Field label="Monthly collection goal (₹)" error={errors.goal} hint="Shown as a progress ring on Home (only to people with revenue access). Leave blank to hide.">
+              <input inputMode="decimal" placeholder="e.g. 200000" value={goal} onChange={(e) => setGoal(e.target.value)} />
+            </Field>
+          )}
         </div>
         <div className="mt-5">
           <h3 className="text-sm font-semibold text-slate-700">WhatsApp / email messages</h3>

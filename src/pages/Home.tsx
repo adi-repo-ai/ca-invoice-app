@@ -7,7 +7,7 @@ import { Button, Card, Empty, LinkButton, Money, OverdueBadge, Skeleton, Skeleto
 import { describeAudit, listRecentAudit, timeAgo, type AuditEntry } from '../data/audit';
 import { countClients } from '../data/clients';
 import { addHome, deleteHome, listHome, updateHome, type HomeItem, type HomeKind } from '../data/home';
-import { countNumbered, listOldDrafts, listOverdue, periodTotals, type InvoiceRow, type PeriodTotals } from '../data/invoices';
+import { countInvoices, countNumbered, listOldDrafts, listOverdue, periodTotals, type InvoiceRow, type PeriodTotals } from '../data/invoices';
 import { db } from '../firebase';
 import { addDays, fyForDate, fyRange, monthRange, todayIST } from '../lib/fy';
 import { daysBetween } from '../lib/messages';
@@ -76,8 +76,9 @@ function lastMonths(today: string, n: number) {
 }
 
 export default function Home() {
-  const { user, role } = useAuth();
+  const { user, role, fin } = useAuth();
   const { settings, saved } = useSettings();
+  const [unpaid, setUnpaid] = useState<number | null>(null);
   const now = useClock();
   const today = todayIST();
   const fy = fyForDate(today);
@@ -97,12 +98,17 @@ export default function Home() {
   useEffect(() => {
     const m = monthRange(today);
     const y = fyRange(fy);
-    periodTotals(db, m.start, m.end).then(setMonth).catch(() => undefined);
-    periodTotals(db, y.start, y.end).then(setYear).catch(() => undefined);
-    periodTotals(db, addDays(today, -6), today).then(setWeek).catch(() => undefined);
-    Promise.all(lastMonths(today, 6).map(async (mo) => ({ mo, t: await periodTotals(db, mo.start, mo.end) })))
-      .then((rows) => setSeries(rows.map(({ mo, t }) => ({ label: mo.label, a: t.invoicedPaise, b: t.receivedPaise }))))
-      .catch(() => setSeries([]));
+    // Revenue totals are only loaded for people with revenue access.
+    if (fin) {
+      periodTotals(db, m.start, m.end).then(setMonth).catch(() => undefined);
+      periodTotals(db, y.start, y.end).then(setYear).catch(() => undefined);
+      periodTotals(db, addDays(today, -6), today).then(setWeek).catch(() => undefined);
+      Promise.all(lastMonths(today, 6).map(async (mo) => ({ mo, t: await periodTotals(db, mo.start, mo.end) })))
+        .then((rows) => setSeries(rows.map(({ mo, t }) => ({ label: mo.label, a: t.invoicedPaise, b: t.receivedPaise }))))
+        .catch(() => setSeries([]));
+    } else {
+      countInvoices(db, { status: 'ISSUED' }).then(setUnpaid).catch(() => undefined);
+    }
     countClients(db).then(setClients).catch(() => undefined);
     countNumbered(db).then(setNumbered).catch(() => undefined);
     listOverdue(db, today, 50).then(setOverdue).catch(() => setOverdue([]));
@@ -118,7 +124,7 @@ export default function Home() {
         .then((e) => setTodayEvents(e.filter((x) => x.date === today)))
         .catch(() => undefined);
     }
-  }, [today, fy, user]);
+  }, [today, fy, user, fin]);
 
   const name = (user?.displayName || user?.email?.split('@')[0] || '').trim();
   const collected = year && year.invoicedPaise > 0 ? Math.min(100, Math.round((year.receivedPaise / year.invoicedPaise) * 100)) : 0;
@@ -139,7 +145,7 @@ export default function Home() {
 
   // Milestones: highest reached, until dismissed.
   const countMilestone = numbered ? [...MILESTONES].reverse().find((m) => numbered >= m) : undefined;
-  const moneyMilestone = year ? [...MONEY_MILESTONES].reverse().find((m) => year.receivedPaise >= m) : undefined;
+  const moneyMilestone = fin && year ? [...MONEY_MILESTONES].reverse().find((m) => year.receivedPaise >= m) : undefined;
   const milestone = moneyMilestone
     ? { text: `₹${shortRupees(moneyMilestone)} collected in FY ${fy}!`, sub: 'A big step for the firm. Keep it going.' }
     : countMilestone && countMilestone > 1
@@ -179,7 +185,7 @@ export default function Home() {
               {name ? `, ${name}` : ''} 👋
             </h1>
             <p className="mt-1 text-sm text-white/85">
-              {week && week.receivedPaise > 0 ? (
+              {fin && week && week.receivedPaise > 0 ? (
                 <>
                   You collected <b>₹{formatPaise(week.receivedPaise)}</b> in the last 7 days 👏
                 </>
@@ -191,8 +197,8 @@ export default function Home() {
           <div className="flex flex-wrap gap-2">
             <QuickAction to="/invoices/new" label="New invoice" primary />
             <QuickAction to="/clients/new" label="New client" />
-            <QuickAction to="/reports" label="Reports" />
-            {role === 'ADMIN' && <QuickAction to="/settings/backup" label="Backup" />}
+            {fin ? <QuickAction to="/reports" label="Reports" /> : <QuickAction to="/invoices" label="All invoices" />}
+            {role === 'ADMIN' && fin && <QuickAction to="/settings/backup" label="Backup" />}
           </div>
         </div>
       </section>
@@ -261,8 +267,12 @@ export default function Home() {
 
       {/* Today */}
       <section aria-label="Today" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <TodayTile to="/invoices" tone="red" label="Overdue" value={overdue ? String(overdue.length) : '…'} hint={overdue && overdue.length ? `₹${formatPaise(overdueSum)} late` : 'Nothing overdue'} />
-        <TodayTile to="/invoices" tone="amber" label="To collect (FY)" value={year ? `₹${shortRupees(year.outstandingPaise)}` : '…'} hint="Issued, not yet paid" />
+        <TodayTile to="/invoices" tone="red" label="Overdue" value={overdue ? String(overdue.length) : '…'} hint={overdue && overdue.length ? (fin ? `₹${formatPaise(overdueSum)} late` : 'Past their due date') : 'Nothing overdue'} />
+        {fin ? (
+          <TodayTile to="/invoices" tone="amber" label="To collect (FY)" value={year ? `₹${shortRupees(year.outstandingPaise)}` : '…'} hint="Issued, not yet paid" />
+        ) : (
+          <TodayTile to="/invoices" tone="amber" label="Unpaid invoices" value={unpaid === null ? '…' : String(unpaid)} hint="Issued, not yet paid" />
+        )}
         <TodayTile to="/" tone="blue" label="Tasks due" value={dueTasks === null ? '…' : String(dueTasks)} hint={dueTasks ? 'See your task list below' : 'All clear'} />
         <TodayTile
           to="/"
@@ -285,75 +295,87 @@ export default function Home() {
         </div>
       )}
 
-      {/* Statistics */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Invoiced this month" value={month ? <Money paise={month.invoicedPaise} /> : <Skeleton className="h-7 w-28" />} />
-        <StatCard label="Received this month" value={month ? <Money paise={month.receivedPaise} /> : <Skeleton className="h-7 w-28" />} tone="good" />
-        <StatCard label="Pending (FY)" value={year ? <Money paise={year.outstandingPaise} /> : <Skeleton className="h-7 w-28" />} tone="warn" />
-        <StatCard label="Clients" value={clients ?? <Skeleton className="h-7 w-12" />} hint={<Link className="text-[var(--brand)] hover:underline" to="/clients">View all</Link>} />
-      </section>
+      {fin ? (
+        <>
+          {/* Statistics */}
+          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Invoiced this month" value={month ? <Money paise={month.invoicedPaise} /> : <Skeleton className="h-7 w-28" />} />
+            <StatCard label="Received this month" value={month ? <Money paise={month.receivedPaise} /> : <Skeleton className="h-7 w-28" />} tone="good" />
+            <StatCard label="Pending (FY)" value={year ? <Money paise={year.outstandingPaise} /> : <Skeleton className="h-7 w-28" />} tone="warn" />
+            <StatCard label="Clients" value={clients ?? <Skeleton className="h-7 w-12" />} hint={<Link className="text-[var(--brand)] hover:underline" to="/clients">View all</Link>} />
+          </section>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card title="Last 6 months" className="lg:col-span-2" actions={<LinkButton variant="ghost" to="/reports">Full reports →</LinkButton>}>
-          {!series ? <Skeleton className="h-48" /> : <BarChart data={series} aLabel="Invoiced" bLabel="Received" height={170} />}
-        </Card>
-        <Card title={goal ? 'Monthly goal' : `Collection · FY ${fy}`}>
-          <div className="flex flex-col items-center gap-3 text-center">
-            {goal ? (
-              <>
-                <Ring pct={goalPct} size={140} stroke={13} color={goalPct >= 100 ? '#16a34a' : 'var(--brand)'}>
-                  <span className="text-2xl font-semibold tabular-nums">{goalPct}%</span>
-                  <span className="text-[11px] text-slate-500">of goal</span>
-                </Ring>
-                <p className="text-sm text-slate-600">
-                  {month ? <Money paise={month.receivedPaise} /> : '…'} of <Money paise={goal} /> this month
-                  {goalPct >= 100 && <span className="block font-medium text-green-700">Goal reached 🎉</span>}
-                </p>
-              </>
-            ) : (
-              <>
-                <Ring pct={collected} size={140} stroke={13} color="#16a34a">
-                  <span className="text-2xl font-semibold tabular-nums">{collected}%</span>
-                  <span className="text-[11px] text-slate-500">collected</span>
-                </Ring>
-                <p className="text-sm text-slate-600">
-                  {year ? (
-                    <>
-                      <Money paise={year.receivedPaise} /> of <Money paise={year.invoicedPaise} />
-                    </>
-                  ) : (
-                    '…'
-                  )}
-                </p>
-                {role === 'ADMIN' && (
-                  <Link to="/settings" className="text-xs text-[var(--brand)] hover:underline">
-                    Set a monthly goal in Settings
-                  </Link>
+          <div className="grid gap-6 lg:grid-cols-3">
+            <Card title="Last 6 months" className="lg:col-span-2" actions={<LinkButton variant="ghost" to="/reports">Full reports →</LinkButton>}>
+              {!series ? <Skeleton className="h-48" /> : <BarChart data={series} aLabel="Invoiced" bLabel="Received" height={170} />}
+            </Card>
+            <Card title={goal ? 'Monthly goal' : `Collection · FY ${fy}`}>
+              <div className="flex flex-col items-center gap-3 text-center">
+                {goal ? (
+                  <>
+                    <Ring pct={goalPct} size={140} stroke={13} color={goalPct >= 100 ? '#16a34a' : 'var(--brand)'}>
+                      <span className="text-2xl font-semibold tabular-nums">{goalPct}%</span>
+                      <span className="text-[11px] text-slate-500">of goal</span>
+                    </Ring>
+                    <p className="text-sm text-slate-600">
+                      {month ? <Money paise={month.receivedPaise} /> : '…'} of <Money paise={goal} /> this month
+                      {goalPct >= 100 && <span className="block font-medium text-green-700">Goal reached 🎉</span>}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Ring pct={collected} size={140} stroke={13} color="#16a34a">
+                      <span className="text-2xl font-semibold tabular-nums">{collected}%</span>
+                      <span className="text-[11px] text-slate-500">collected</span>
+                    </Ring>
+                    <p className="text-sm text-slate-600">
+                      {year ? (
+                        <>
+                          <Money paise={year.receivedPaise} /> of <Money paise={year.invoicedPaise} />
+                        </>
+                      ) : (
+                        '…'
+                      )}
+                    </p>
+                    {role === 'ADMIN' && (
+                      <Link to="/settings" className="text-xs text-[var(--brand)] hover:underline">
+                        Set a monthly goal in Settings
+                      </Link>
+                    )}
+                  </>
                 )}
-              </>
-            )}
+              </div>
+            </Card>
           </div>
-        </Card>
-      </div>
+        </>
+      ) : (
+        <section className="grid gap-4 sm:grid-cols-3">
+          <StatCard label="Clients" value={clients ?? <Skeleton className="h-7 w-12" />} hint={<Link className="text-[var(--brand)] hover:underline" to="/clients">View all</Link>} />
+          <StatCard label="Invoices issued, all time" value={numbered ?? <Skeleton className="h-7 w-12" />} />
+          <StatCard label="Unpaid invoices" value={unpaid ?? <Skeleton className="h-7 w-12" />} tone="warn" hint={<Link className="text-[var(--brand)] hover:underline" to="/invoices">See invoices</Link>} />
+        </section>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card title="This week" className="lg:col-span-1">
-          <dl className="space-y-3 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Invoiced (last 7 days)</dt>
-              <dd className="font-semibold">{week ? <Money paise={week.invoicedPaise} /> : '…'}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Received (last 7 days)</dt>
-              <dd className="font-semibold text-green-700">{week ? <Money paise={week.receivedPaise} /> : '…'}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">Invoices issued, all time</dt>
-              <dd className="font-semibold">{numbered ?? '…'}</dd>
-            </div>
-          </dl>
-        </Card>
-        <Card title="Recent activity" className="lg:col-span-2" actions={role === 'ADMIN' ? <LinkButton variant="ghost" to="/settings/activity">All activity →</LinkButton> : undefined}>
+        {fin && (
+          <Card title="This week" className="lg:col-span-1">
+            <dl className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-slate-500">Invoiced (last 7 days)</dt>
+                <dd className="font-semibold">{week ? <Money paise={week.invoicedPaise} /> : '…'}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-500">Received (last 7 days)</dt>
+                <dd className="font-semibold text-green-700">{week ? <Money paise={week.receivedPaise} /> : '…'}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-slate-500">Invoices issued, all time</dt>
+                <dd className="font-semibold">{numbered ?? '…'}</dd>
+              </div>
+            </dl>
+          </Card>
+        )}
+        <Card title="Recent activity" className={fin ? 'lg:col-span-2' : 'lg:col-span-3'} actions={role === 'ADMIN' ? <LinkButton variant="ghost" to="/settings/activity">All activity →</LinkButton> : undefined}>
           {!activity ? (
             <SkeletonRows rows={3} />
           ) : activity.length === 0 ? (

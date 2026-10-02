@@ -40,7 +40,7 @@ const TABS: { value: InvoiceStatus | ''; label: string; active: string }[] = [
 const AMOUNTS_KEY = 'invoiceAmountsHidden';
 
 export default function Invoices() {
-  const { role } = useAuth();
+  const { role, fin } = useAuth();
   const actor = useActor();
   const dialog = useDialog();
   const [client, setClient] = useState<ClientRow | null>(null);
@@ -102,7 +102,7 @@ export default function Invoices() {
   }, [countKey, reloadTick]);
 
   const isAdmin = role === 'ADMIN';
-  const canDelete = (r: InvoiceRow) => isAdmin || r.status === 'DRAFT';
+  const canDelete = () => isAdmin; // only ADMINs delete invoices
   const numbered = (n: number) => (n === 1 ? '1 invoice' : `${n} invoices`);
 
   async function removeOne(r: InvoiceRow) {
@@ -265,9 +265,11 @@ export default function Invoices() {
                 Reset
               </Button>
             )}
-            <Button variant="secondary" className="flex-1" busy={busy === 'csv'} onClick={exportCsv}>
-              Export CSV
-            </Button>
+            {fin && (
+              <Button variant="secondary" className="flex-1" busy={busy === 'csv'} onClick={exportCsv}>
+                Export CSV
+              </Button>
+            )}
           </div>
         </div>
 
@@ -282,7 +284,7 @@ export default function Invoices() {
               {hidden ? <EyeIcon size={16} /> : <EyeOffIcon size={16} />}
               {hidden ? 'Show amounts' : 'Hide amounts'}
             </Button>
-            {(isAdmin || status === 'DRAFT') && (shown ?? 0) > 0 && (
+            {isAdmin && (shown ?? 0) > 0 && (
               <Button variant="secondary" className="gap-2 !border-red-300 !text-red-600 hover:!bg-red-50" busy={busy === 'deleteAll'} onClick={removeAll}>
                 <TrashIcon size={16} />
                 {status ? `Delete all ${label.toLowerCase()}` : 'Delete all'}
@@ -298,7 +300,7 @@ export default function Invoices() {
               rows={rows}
               pdfActions
               hideAmounts={hidden}
-              onDelete={removeOne}
+              onDelete={isAdmin ? removeOne : undefined}
               canDelete={canDelete}
               onNotice={(text, kind) => (kind === 'error' ? (setError(text), setNotice('')) : (setNotice(text), setError('')))}
             />

@@ -107,6 +107,12 @@ function AdminOnly({ children }: { children: ReactNode }) {
   return role === 'ADMIN' ? <>{children}</> : <Navigate to="/" replace />;
 }
 
+/** Pages showing revenue totals (reports, full backup): only people with revenue access. */
+function RevenueOnly({ children }: { children: ReactNode }) {
+  const { fin } = useAuth();
+  return fin ? <>{children}</> : <Navigate to="/" replace />;
+}
+
 export default function App() {
   return (
     <DialogProvider>
@@ -132,9 +138,9 @@ export default function App() {
               ['/clients/:id/edit', <ClientEdit />],
               ['/settings', <AdminOnly><Settings /></AdminOnly>],
               ['/settings/users', <AdminOnly><Users /></AdminOnly>],
-              ['/settings/backup', <AdminOnly><Backup /></AdminOnly>],
+              ['/settings/backup', <AdminOnly><RevenueOnly><Backup /></RevenueOnly></AdminOnly>],
               ['/settings/activity', <AdminOnly><Activity /></AdminOnly>],
-              ['/reports', <Reports />],
+              ['/reports', <RevenueOnly><Reports /></RevenueOnly>],
               ['/users', <Navigate to="/settings/users" replace />],
               ['/backup', <Navigate to="/settings/backup" replace />],
             ] as [string, ReactNode][]

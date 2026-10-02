@@ -25,7 +25,7 @@ async function makePdf(inv: InvoiceRow, settings: FirmSettings) {
 
 export default function InvoiceView() {
   const { id } = useParams();
-  const { role } = useAuth();
+  const { role, pay } = useAuth();
   const actor = useActor();
   const navigate = useNavigate();
   const dialog = useDialog();
@@ -74,7 +74,7 @@ export default function InvoiceView() {
   const gst = inv.taxType !== 'NONE';
   const issuedLike = inv.status !== 'DRAFT';
   const wa = normaliseWhatsapp(inv.client.whatsapp);
-  const canDelete = role === 'ADMIN' || inv.status === 'DRAFT';
+  const canDelete = role === 'ADMIN'; // only ADMINs delete invoices
   const overdueDays = inv.status === 'ISSUED' ? Math.max(0, daysBetween(inv.dueDate, todayIST())) : 0;
   const reminded = audit.find((a) => a.details?.kind === 'reminder');
   const lastReminder = reminded ? timeAgo(reminded.at?.toDate()) : '';
@@ -273,7 +273,7 @@ export default function InvoiceView() {
             </div>
           </div>
         )}
-        {inv.status === 'PAID' && inv.payment && (
+        {inv.status === 'PAID' && inv.payment && pay && (
           <div className="mt-4 rounded-xl border border-green-200 bg-green-50/60 p-3">
             <div className="mb-2 text-sm font-medium text-green-800">Payment receipt</div>
             <div className="flex flex-wrap gap-2">
@@ -291,7 +291,7 @@ export default function InvoiceView() {
         )}
         {(inv.status === 'ISSUED' || canDelete || issuedLike) && (
           <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-            {inv.status === 'ISSUED' && (
+            {inv.status === 'ISSUED' && pay && (
               <Button variant="ghost" onClick={() => setPanel(panel === 'payment' ? '' : 'payment')}>
                 ✓ Mark as paid
               </Button>
@@ -366,7 +366,7 @@ export default function InvoiceView() {
                 <dd>{intra ? 'CGST + SGST (same state)' : 'IGST (other state)'}</dd>
               </>
             )}
-            {inv.payment && (
+            {inv.payment && pay && (
               <>
                 <dt className="text-slate-500">Paid on</dt>
                 <dd>

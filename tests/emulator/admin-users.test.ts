@@ -75,4 +75,30 @@ describe('admin-users function', () => {
     const selfDelete = await handler(post('admin-users', { action: 'delete', uid: adminUid }, adminToken));
     expect(selfDelete.status).toBe(400);
   });
+
+  it('permissions: new admins start limited; only an owner changes access; owners are protected', async () => {
+    const claimsOf = async (uid: string) => (await adminAuth().getUser(uid)).customClaims;
+    // A new ADMIN starts as "Admin B": no revenue, no payments. A new STAFF starts with payments.
+    const b = (await (await handler(post('admin-users', { action: 'create', email: 'adminb@example.com', password: 'adminb123', displayName: 'B', role: 'ADMIN' }, adminToken))).json()) as { uid: string };
+    expect(await claimsOf(b.uid)).toEqual({ role: 'ADMIN', fin: false, pay: false });
+    const st = (await (await handler(post('admin-users', { action: 'create', email: 'st@example.com', password: 'staff1234', displayName: 'S', role: 'STAFF' }, adminToken))).json()) as { uid: string };
+    expect(await claimsOf(st.uid)).toEqual({ role: 'STAFF', fin: false, pay: true });
+    expect((await adminDb().doc(`users/${b.uid}`).get()).data()).toMatchObject({ fin: false, pay: false });
+
+    const bToken = await idTokenFor('adminb@example.com', 'adminb123');
+    // Admin B cannot change permissions, nor disable / delete / demote the owner.
+    expect((await handler(post('admin-users', { action: 'setPerms', uid: st.uid, fin: false, pay: false }, bToken))).status).toBe(403);
+    expect((await handler(post('admin-users', { action: 'disable', uid: adminUid }, bToken))).status).toBe(403);
+    expect((await handler(post('admin-users', { action: 'setRole', uid: adminUid, role: 'STAFF' }, bToken))).status).toBe(403);
+    // ...but can still manage staff, and a role change never grants revenue access.
+    expect((await handler(post('admin-users', { action: 'setRole', uid: st.uid, role: 'ADMIN' }, bToken))).status).toBe(200);
+    expect(await claimsOf(st.uid)).toEqual({ role: 'ADMIN', fin: false, pay: true });
+
+    // The owner can switch access on and off; revenue access is for admins only.
+    expect((await handler(post('admin-users', { action: 'setPerms', uid: b.uid, fin: false, pay: true }, adminToken))).status).toBe(200);
+    expect(await claimsOf(b.uid)).toEqual({ role: 'ADMIN', fin: false, pay: true });
+    await handler(post('admin-users', { action: 'setRole', uid: st.uid, role: 'STAFF' }, adminToken));
+    expect((await handler(post('admin-users', { action: 'setPerms', uid: st.uid, fin: true, pay: true }, adminToken))).status).toBe(400);
+    expect((await handler(post('admin-users', { action: 'setPerms', uid: b.uid, fin: 'yes', pay: true }, adminToken))).status).toBe(400);
+  });
 });

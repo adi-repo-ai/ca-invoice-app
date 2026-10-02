@@ -45,12 +45,14 @@ export default postHandler(async (req) => {
     throw new HttpError(409, 'First-time setup has already been used');
   }
   try {
-    await adminAuth().setCustomUserClaims(caller.uid, { role: 'ADMIN' });
+    await adminAuth().setCustomUserClaims(caller.uid, { role: 'ADMIN', fin: true, pay: true });
     await db.doc(`users/${caller.uid}`).set(
       {
         email: caller.email ?? '',
         displayName: (caller.name as string | undefined) ?? '',
         role: 'ADMIN',
+        fin: true,
+        pay: true,
         disabled: false,
         createdAt: FieldValue.serverTimestamp(),
         createdBy: 'setup-code',

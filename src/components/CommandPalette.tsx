@@ -19,7 +19,7 @@ interface Item {
 /** Ctrl+K / "/" search: jump to a client, an invoice number or any page. */
 export function CommandPalette({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { role, fin } = useAuth();
   const { settings } = useSettings();
   const [q, setQ] = useState('');
   const [clients, setClients] = useState<ClientRow[]>([]);
@@ -58,13 +58,13 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
     { key: 'home', group: 'Pages', label: 'Home', go: go('/') },
     { key: 'inv', group: 'Pages', label: 'Invoices', go: go('/invoices') },
     { key: 'cli', group: 'Pages', label: 'Clients', go: go('/clients') },
-    { key: 'rep', group: 'Pages', label: 'Reports', go: go('/reports') },
+    ...(fin ? [{ key: 'rep', group: 'Pages', label: 'Reports', go: go('/reports') }] : []),
     ...(role === 'ADMIN'
       ? [
           { key: 'set', group: 'Pages', label: 'Settings', go: go('/settings') },
           { key: 'usr', group: 'Pages', label: 'Users', go: go('/settings/users') },
           { key: 'act', group: 'Pages', label: 'Activity log', go: go('/settings/activity') },
-          { key: 'bak', group: 'Pages', label: 'Backup', go: go('/settings/backup') },
+          ...(fin ? [{ key: 'bak', group: 'Pages', label: 'Backup', go: go('/settings/backup') }] : []),
         ]
       : []),
   ];
@@ -90,7 +90,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       ...pages.filter((p) => !term || String(p.label).toLowerCase().includes(term)),
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [invoice, clients, term, role],
+    [invoice, clients, term, role, fin],
   );
   useEffect(() => setActive(0), [items.length]);
 

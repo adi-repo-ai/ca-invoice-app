@@ -8,22 +8,37 @@ interface AuthState {
   loading: boolean;
   user: User | null;
   role: Role | null; // null = signed in but no role assigned -> no access
+  fin: boolean; // can see revenue totals, reports, CSV export and backup
+  pay: boolean; // can record payments, send receipts and client statements
 }
 
-const AuthContext = createContext<AuthState>({ loading: true, user: null, role: null });
+const SIGNED_OUT: AuthState = { loading: false, user: null, role: null, fin: false, pay: false };
+const AuthContext = createContext<AuthState>({ ...SIGNED_OUT, loading: true });
+
+/**
+ * Permissions from the token. Accounts made before these flags existed keep
+ * what they had: ADMINs see revenue, everyone may record payments.
+ */
+export function permsFromClaims(claims: Record<string, unknown>, role: Role | null): { fin: boolean; pay: boolean } {
+  if (!role) return { fin: false, pay: false };
+  return {
+    fin: typeof claims.fin === 'boolean' ? claims.fin : role === 'ADMIN',
+    pay: typeof claims.pay === 'boolean' ? claims.pay : true,
+  };
+}
 
 const IDLE_LIMIT_MS = 30 * 60 * 1000; // sign out after 30 minutes without activity
 const HEARTBEAT_MS = 5 * 60 * 1000; // refresh "last seen" every 5 minutes while open
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AuthState>({ loading: true, user: null, role: null });
+  const [state, setState] = useState<AuthState>({ ...SIGNED_OUT, loading: true });
   useEffect(
     () =>
       onIdTokenChanged(auth, async (user) => {
-        if (!user) return setState({ loading: false, user: null, role: null });
+        if (!user) return setState(SIGNED_OUT);
         const token = await user.getIdTokenResult();
         const role = token.claims.role === 'ADMIN' || token.claims.role === 'STAFF' ? token.claims.role : null;
-        setState({ loading: false, user, role });
+        setState({ loading: false, user, role, ...permsFromClaims(token.claims, role) });
       }),
     [],
   );

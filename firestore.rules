@@ -15,6 +15,9 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function isAdmin() { return signedIn() && request.auth.token.role == 'ADMIN'; }
     function isStaff() { return signedIn() && request.auth.token.role in ['ADMIN', 'STAFF']; }
+    // Per-person "payments" permission (record payments / receipts). Accounts
+    // without the flag (made before it existed) keep it.
+    function canPay() { return isStaff() && request.auth.token.get('pay', true) == true; }
     function uid() { return request.auth.uid; }
     function docPath(coll, id) { return /databases/$(database)/documents/$(coll)/$(id); }
 
@@ -153,8 +156,8 @@ service cloud.firestore {
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.createdAt == resource.data.createdAt;
       // Invoices keep their own copy of the client's details, so removing a
-      // client never changes past invoices.
-      allow delete: if isStaff();
+      // client never changes past invoices. Only ADMINs remove clients.
+      allow delete: if isAdmin();
     }
 
     // ---------- invoices ----------
@@ -257,14 +260,14 @@ service cloud.firestore {
       allow update: if isStaff()
         && resource.data.status == 'DRAFT' && request.resource.data.status == 'ISSUED'
         && isIssue(invoiceId, resource.data, request.resource.data);
-      allow update: if isStaff()
+      allow update: if canPay()
         && resource.data.status == 'ISSUED' && request.resource.data.status == 'PAID'
         && isPayment(resource.data, request.resource.data);
       allow update: if isAdmin()
         && resource.data.status == 'ISSUED' && request.resource.data.status == 'CANCELLED'
         && isCancel(resource.data, request.resource.data);
-      // Drafts can be deleted by any staff member; numbered invoices only by an ADMIN.
-      allow delete: if isAdmin() || (isStaff() && resource.data.status == 'DRAFT');
+      // Only ADMINs delete invoices (drafts or numbered).
+      allow delete: if isAdmin();
     }
 
     // ---------- per-FY invoice counters ----------
