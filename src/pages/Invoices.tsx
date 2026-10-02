@@ -47,6 +47,7 @@ export default function Invoices() {
   const [status, setStatus] = useState<InvoiceStatus | ''>('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [order, setOrder] = useState<'desc' | 'asc'>('desc');
   const [rows, setRows] = useState<InvoiceRow[] | null>(null);
   const [cursor, setCursor] = useState<DocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -74,7 +75,7 @@ export default function Invoices() {
     });
   }
 
-  const filter: InvoiceFilter = { clientId: client?.id, status, from: from || undefined, to: to || undefined };
+  const filter: InvoiceFilter = { clientId: client?.id, status, from: from || undefined, to: to || undefined, order };
   const key = JSON.stringify(filter);
   // Counts per status follow the client and date filters (not the status itself).
   const countKey = JSON.stringify({ clientId: client?.id, from: from || undefined, to: to || undefined });
@@ -209,27 +210,47 @@ export default function Invoices() {
       {error && <Alert>{error}</Alert>}
       {notice && <Alert kind="success">{notice}</Alert>}
       <Card>
-        {/* Status tabs: always visible, with counts */}
-        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter by status">
-          {TABS.map((t) => {
-            const active = status === t.value;
-            const n = counts[t.value];
-            return (
+        {/* Status tabs: always visible, with counts; sort on the right */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter by status">
+            {TABS.map((t) => {
+              const active = status === t.value;
+              const n = counts[t.value];
+              return (
+                <button
+                  key={t.label}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setStatus(t.value)}
+                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium shadow-sm transition ${active ? t.active : 'border-slate-200 bg-surface text-slate-700 hover:border-[var(--brand)] hover:text-[var(--brand)]'}`}
+                >
+                  {t.label}
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${active ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    {n === undefined ? '…' : n === null ? '–' : n}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="inline-flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Sort invoices">
+            {(
+              [
+                ['desc', 'Newest first'],
+                ['asc', 'Oldest first'],
+              ] as const
+            ).map(([v, l]) => (
               <button
-                key={t.label}
+                key={v}
                 type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setStatus(t.value)}
-                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium shadow-sm transition ${active ? t.active : 'border-slate-200 bg-surface text-slate-700 hover:border-[var(--brand)] hover:text-[var(--brand)]'}`}
+                onClick={() => setOrder(v)}
+                aria-pressed={order === v}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${order === v ? 'bg-surface text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
               >
-                {t.label}
-                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${active ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                  {n === undefined ? '…' : n === null ? '–' : n}
-                </span>
+                {l}
               </button>
-            );
-          })}
+            ))}
+          </div>
         </div>
 
         {/* Client and date filters: always visible */}

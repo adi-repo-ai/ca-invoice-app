@@ -125,6 +125,7 @@ export default function ClientView() {
   return (
     <div className="space-y-4">
       <PageHeader
+        back={{ to: '/clients', label: 'Clients' }}
         title={client.name}
         subtitle={
           client.tags && client.tags.length > 0 ? (

@@ -38,6 +38,9 @@ function makeStyles(brand: string) {
     payBox: { width: 290, borderWidth: 1, borderColor: LINE, borderRadius: 4, padding: 10 },
     payRow: { flexDirection: 'row', gap: 10 },
     qr: { width: 66, height: 66 },
+    paidNote: { width: 76, paddingVertical: 8, borderWidth: 1.5, borderColor: '#16a34a', borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
+    paidNoteTitle: { fontFamily: 'Helvetica-Bold', fontSize: 10, color: '#16a34a' },
+    paidNoteLine: { fontSize: 7, color: '#15803d', marginTop: 1 },
     qrCaption: { fontSize: 6.5, color: MUTED, textAlign: 'center', marginTop: 2, width: 66 },
     // ---- tables ----
     table: { marginTop: 14, borderWidth: 1, borderColor: LINE, borderRadius: 4 },
@@ -70,11 +73,14 @@ function makeStyles(brand: string) {
     // ---- footer ----
     footer: { position: 'absolute', bottom: 22, left: 36, right: 36, flexDirection: 'row', justifyContent: 'space-between', fontSize: 7.5, color: MUTED },
     band: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 12, backgroundColor: brand },
-    watermark: { position: 'absolute', top: 330, left: 0, right: 0, textAlign: 'center', fontSize: 80, opacity: 0.12, transform: 'rotate(-30deg)', fontFamily: 'Helvetica-Bold' },
+    stamp: { alignSelf: 'flex-end', marginTop: 8, paddingVertical: 3, paddingHorizontal: 10, borderWidth: 1.5, borderRadius: 3, alignItems: 'center', transform: 'rotate(-6deg)' },
+    stampText: { fontFamily: 'Helvetica-Bold', fontSize: 14, letterSpacing: 3 },
+    stampSub: { fontSize: 6.5, marginTop: 1 },
   });
 }
 
-// Faint diagonal stamp across the page for paid, draft and cancelled invoices.
+// Rubber-stamp under the invoice details for paid, draft and cancelled invoices
+// (kept clear of the tables and boxes so it never overlaps them).
 const WATERMARK: Partial<Record<Invoice['status'], { text: string; color: string }>> = {
   PAID: { text: 'PAID', color: '#16a34a' },
   DRAFT: { text: 'DRAFT', color: '#6b7280' },
@@ -109,11 +115,6 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl, upiLink }: Invoi
   return (
     <Document title={inv.number ?? 'Invoice'} author={firm.name} creator={firm.name}>
       <Page size="A4" style={s.page}>
-        {WATERMARK[inv.status] && (
-          <Text style={[s.watermark, { color: WATERMARK[inv.status]!.color }]} fixed>
-            {WATERMARK[inv.status]!.text}
-          </Text>
-        )}
 
         {/* Header: firm on the left, invoice title + details on the right */}
         <View style={s.header}>
@@ -138,6 +139,12 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl, upiLink }: Invoi
                 <Text style={s.metaValue}>{v}</Text>
               </View>
             ))}
+            {WATERMARK[inv.status] && (
+              <View style={[s.stamp, { borderColor: WATERMARK[inv.status]!.color }]}>
+                <Text style={[s.stampText, { color: WATERMARK[inv.status]!.color }]}>{WATERMARK[inv.status]!.text}</Text>
+                {inv.status === 'PAID' && inv.payment ? <Text style={[s.stampSub, { color: WATERMARK[inv.status]!.color }]}>on {fmtDate(inv.payment.date)}</Text> : null}
+              </View>
+            )}
           </View>
         </View>
         <View style={s.rule} />
@@ -270,7 +277,12 @@ export function InvoicePdf({ invoice: inv, settings, qrDataUrl, upiLink }: Invoi
                       </Text>
                     ) : null}
                   </View>
-                  {qrDataUrl ? (
+                  {inv.status === 'PAID' && inv.payment ? (
+                    <View style={s.paidNote}>
+                      <Text style={s.paidNoteTitle}>Received</Text>
+                      <Text style={s.paidNoteLine}>with thanks</Text>
+                    </View>
+                  ) : qrDataUrl ? (
                     <View>
                       <Image src={qrDataUrl} style={s.qr} />
                       <Text style={s.qrCaption}>Scan to pay via UPI</Text>

@@ -114,10 +114,18 @@ export function Alert({ kind = 'error', children }: { kind?: 'error' | 'success'
   );
 }
 
-export function PageHeader({ title, subtitle, actions }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({ title, subtitle, actions, back }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; back?: { to: string; label: string } }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
+        {back && (
+          <Link to={back.to} className="mb-2 inline-flex items-center gap-1 rounded-lg py-1 pr-2 text-sm font-medium text-slate-500 transition hover:text-[var(--brand)]">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            {back.label}
+          </Link>
+        )}
         <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
       </div>

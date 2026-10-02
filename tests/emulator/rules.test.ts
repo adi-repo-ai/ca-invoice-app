@@ -349,6 +349,18 @@ describe('invites, last-seen and personal items', () => {
     await assertFails(getDoc(doc(fs(asStaff(env)), 'invites/new@gmail.com')));
   });
 
+  it('only an owner can set access-level permissions on an invite', async () => {
+    const base = { email: 'lvl@gmail.com', role: 'ADMIN', invitedBy: ADMIN.uid, invitedAt: serverTimestamp() };
+    const owner = fs(asAdmin(env)); // legacy ADMIN without the flag counts as owner
+    const adminB = fs(env.authenticatedContext(ADMIN.uid, { role: 'ADMIN', email: ADMIN.email, fin: false, pay: false }));
+    await assertSucceeds(setDoc(doc(owner, 'invites/lvl@gmail.com'), { ...base, fin: true, pay: true }));
+    await assertFails(setDoc(doc(owner, 'invites/lvl@gmail.com'), { ...base, role: 'STAFF', fin: true }));
+    await assertFails(setDoc(doc(owner, 'invites/lvl@gmail.com'), { ...base, fin: 'yes' }));
+    await assertFails(setDoc(doc(adminB, 'invites/lvl@gmail.com'), { ...base, fin: true }));
+    await assertFails(setDoc(doc(adminB, 'invites/lvl@gmail.com'), { ...base, pay: true }));
+    await assertSucceeds(setDoc(doc(adminB, 'invites/lvl@gmail.com'), base));
+  });
+
   it('users can only update their own lastSeenAt', async () => {
     const db = fs(asStaff(env));
     await assertSucceeds(updateDoc(doc(db, 'users', STAFF.uid), { lastSeenAt: serverTimestamp() }));

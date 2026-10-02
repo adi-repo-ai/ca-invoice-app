@@ -18,7 +18,7 @@ import {
   type Firestore,
   type QueryConstraint,
 } from 'firebase/firestore';
-import { addDays, fyForDate, nextInvoiceNumber, todayIST } from '../lib/fy';
+import { addDays, formatInvoiceNumber, fyForDate, nextInvoiceNumber, todayIST } from '../lib/fy';
 import { computeInvoice, type LineInput } from '../lib/tax';
 import type {
   Client,
@@ -314,6 +314,7 @@ export interface InvoiceFilter {
   status?: InvoiceStatus | '';
   from?: string; // YYYY-MM-DD inclusive
   to?: string; // YYYY-MM-DD inclusive
+  order?: 'desc' | 'asc'; // by invoice date; newest first by default
 }
 
 export const INVOICE_PAGE_SIZE = 20;
@@ -324,7 +325,7 @@ function filterConstraints(f: InvoiceFilter): QueryConstraint[] {
   if (f.status) c.push(where('status', '==', f.status));
   if (f.from) c.push(where('invoiceDate', '>=', f.from));
   if (f.to) c.push(where('invoiceDate', '<=', f.to));
-  c.push(orderBy('invoiceDate', 'desc'));
+  c.push(orderBy('invoiceDate', f.order ?? 'desc'));
   return c;
 }
 
@@ -362,6 +363,16 @@ export async function findInvoiceByNumber(db: Firestore, number: string): Promis
   const snap = await getDocs(query(collection(db, 'invoices'), where('number', '==', number), limit(1)));
   const d = snap.docs[0];
   return d ? { id: d.id, ...(d.data() as Invoice) } : null;
+}
+
+/**
+ * Invoice lookup from a search box: "7" or "0007" means number 7 of this
+ * financial year; anything containing "/" is treated as a full invoice number.
+ */
+export async function findInvoiceBySearch(db: Firestore, term: string, prefix: string, today: string): Promise<InvoiceRow | null> {
+  const t = term.trim();
+  const number = /^\d{1,4}$/.test(t) ? formatInvoiceNumber(prefix, fyForDate(today), Number(t)) : t.includes('/') ? t.toUpperCase() : null;
+  return number ? findInvoiceByNumber(db, number) : null;
 }
 
 /** Drafts created before a date (oldest first): nudges to finish or delete them. */

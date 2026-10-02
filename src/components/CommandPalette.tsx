@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { listClients, type ClientRow } from '../data/clients';
-import { findInvoiceByNumber, type InvoiceRow } from '../data/invoices';
+import { findInvoiceBySearch, type InvoiceRow } from '../data/invoices';
 import { db } from '../firebase';
-import { formatInvoiceNumber, fyForDate, todayIST } from '../lib/fy';
+import { todayIST } from '../lib/fy';
 import { formatPaise } from '../lib/money';
 import { useSettings } from '../settings-context';
 
@@ -41,9 +41,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       listClients(db, term, null)
         .then((r) => setClients(r.rows.slice(0, 5)))
         .catch(() => setClients([]));
-      const digits = /^\d{1,4}$/.test(term) ? Number(term) : null;
-      const number = digits ? formatInvoiceNumber(settings.invoicePrefix, fyForDate(todayIST()), digits) : term.toUpperCase().includes('/') ? term.toUpperCase() : null;
-      setInvoice(number ? await findInvoiceByNumber(db, number).catch(() => null) : null);
+      setInvoice(await findInvoiceBySearch(db, term, settings.invoicePrefix, todayIST()).catch(() => null));
     }, 200);
     return () => clearTimeout(t);
   }, [q, settings.invoicePrefix]);

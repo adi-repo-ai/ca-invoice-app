@@ -7,6 +7,8 @@ let invitedToken: string;
 let strangerToken: string;
 let unverifiedToken: string;
 let invitedUid: string;
+let ownerToken: string;
+let ownerUid: string;
 
 beforeAll(async () => {
   await clearAuth();
@@ -15,7 +17,10 @@ beforeAll(async () => {
   await auth.createUser({ email: 'stranger@gmail.com', password: 'stranger123', emailVerified: true });
   await auth.createUser({ email: 'unverified@gmail.com', password: 'unverified123', emailVerified: false });
   await adminDb().doc('invites/partner@gmail.com').set({ email: 'partner@gmail.com', role: 'ADMIN', invitedBy: 'admin-1' });
+  ownerUid = (await auth.createUser({ email: 'owner2@gmail.com', password: 'owner2123', emailVerified: true })).uid;
+  await adminDb().doc('invites/owner2@gmail.com').set({ email: 'owner2@gmail.com', role: 'ADMIN', fin: true, pay: true, invitedBy: 'admin-1' });
   invitedToken = await idTokenFor('partner@gmail.com', 'partner123');
+  ownerToken = await idTokenFor('owner2@gmail.com', 'owner2123');
   strangerToken = await idTokenFor('stranger@gmail.com', 'stranger123');
   unverifiedToken = await idTokenFor('unverified@gmail.com', 'unverified123');
 });
@@ -33,5 +38,11 @@ describe('activate function (Google sign-in allow-list)', () => {
     expect((await adminAuth().getUser(invitedUid)).customClaims).toEqual({ role: 'ADMIN', fin: false, pay: false });
     expect((await adminDb().doc(`users/${invitedUid}`).get()).data()?.role).toBe('ADMIN');
     expect((await adminDb().doc('invites/partner@gmail.com').get()).exists).toBe(false);
+  });
+
+  it('applies the access level chosen on the invite', async () => {
+    expect((await handler(post('activate', {}, ownerToken))).status).toBe(200);
+    expect((await adminAuth().getUser(ownerUid)).customClaims).toEqual({ role: 'ADMIN', fin: true, pay: true });
+    expect((await adminDb().doc(`users/${ownerUid}`).get()).data()).toMatchObject({ role: 'ADMIN', fin: true, pay: true });
   });
 });

@@ -2,14 +2,16 @@ import type { DocumentSnapshot } from 'firebase/firestore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDialog } from '../components/Dialog';
-import { Alert, Button, Card, Empty, LinkButton, PageHeader, SkeletonRows, errorMessage } from '../components/ui';
+import { Alert, Button, Card, Empty, LinkButton, Money, PageHeader, SkeletonRows, StatusBadge, errorMessage } from '../components/ui';
 import { useAuth } from '../auth';
 import { CLIENT_TAGS } from '../lib/defaults';
 import { CLIENT_CSV_HEADERS, parseClientCsv } from '../lib/clientImport';
 import { toCsv } from '../lib/csv';
 import { useSettings } from '../settings-context';
 import { countClients, createClient, deleteClient, listClients, listClientsByTag, listClientsNewest, type ClientRow } from '../data/clients';
+import { findInvoiceBySearch, type InvoiceRow } from '../data/invoices';
 import { db } from '../firebase';
+import { todayIST } from '../lib/fy';
 
 type Sort = 'az' | 'newest';
 
@@ -51,6 +53,19 @@ export default function Clients() {
     }, 250);
     return () => clearTimeout(t);
   }, [fetchPage]);
+
+  // The search box also accepts an invoice number ("7", "0007" or the full number).
+  const [found, setFound] = useState<InvoiceRow | null>(null);
+  useEffect(() => {
+    setFound(null);
+    if (!search.trim()) return;
+    const t = setTimeout(() => {
+      findInvoiceBySearch(db, search, settings.invoicePrefix, todayIST())
+        .then(setFound)
+        .catch(() => setFound(null));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [search, settings.invoicePrefix]);
 
   const [reloadTick, setReloadTick] = useState(0);
   useEffect(() => {
@@ -190,7 +205,7 @@ export default function Clients() {
           <input
             type="search"
             className="min-w-0 flex-1"
-            placeholder="Search by name (starts with)…"
+            placeholder="Search by name or invoice number…"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -219,6 +234,25 @@ export default function Clients() {
             </button>
           ))}
         </div>
+        {found && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--brand)]/30 bg-[var(--brand)]/5 px-4 py-3">
+            <div className="min-w-0 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold">Invoice {found.number}</span>
+                <StatusBadge status={found.status} />
+              </div>
+              <div className="mt-0.5 truncate text-slate-600">
+                {found.client.name} · {found.invoiceDate} · <Money paise={found.totals.grandTotalPaise} />
+              </div>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <LinkButton variant="secondary" to={`/invoices/${found.id}`}>
+                View invoice
+              </LinkButton>
+              {found.clientId && <LinkButton to={`/clients/${found.clientId}`}>View client</LinkButton>}
+            </div>
+          </div>
+        )}
         {!rows ? (
           <SkeletonRows />
         ) : rows.length === 0 ? (
@@ -226,7 +260,7 @@ export default function Clients() {
             icon={<span className="text-xl">👥</span>}
             action={!search && !tag ? <LinkButton to="/clients/new">+ Add your first client</LinkButton> : undefined}
           >
-            {search || tag ? 'No clients match this search or tag.' : 'No clients yet. Add one, or import a list from Excel (CSV).'}
+            {found ? 'No client names start with this. See the matching invoice above.' : search || tag ? 'No clients match this search or tag.' : 'No clients yet. Add one, or import a list from Excel (CSV).'}
           </Empty>
         ) : (
           <ul className="divide-y divide-slate-100">

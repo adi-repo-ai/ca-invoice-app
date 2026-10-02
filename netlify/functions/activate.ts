@@ -1,6 +1,7 @@
 // Google sign-in access check. When someone signs in (e.g. with Google) and
 // has no role yet, the app calls this. If an ADMIN has invited their email
-// (Settings → Users), they get that role; otherwise access is refused.
+// (Settings → Users), they get that role and access level; otherwise access
+// is refused.
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb } from './_shared/admin';
 import { HttpError, postHandler, requireSignedIn, defaultPerms } from './_shared/http';
@@ -18,8 +19,11 @@ export default postHandler(async (req) => {
   if (!invite.exists) {
     throw new HttpError(403, `${email} has not been given access. Ask an administrator to add it in Settings → Users.`);
   }
-  const role = invite.data()!.role === 'ADMIN' ? 'ADMIN' : 'STAFF';
-  const p = defaultPerms(role);
+  const data = invite.data()!;
+  const role = data.role === 'ADMIN' ? 'ADMIN' : 'STAFF';
+  // The invite may carry the access level chosen by an owner; otherwise defaults.
+  const def = defaultPerms(role);
+  const p = { fin: role === 'ADMIN' && data.fin === true, pay: typeof data.pay === 'boolean' ? data.pay : def.pay };
   await adminAuth().setCustomUserClaims(caller.uid, { role, ...p });
   await db.doc(`users/${caller.uid}`).set(
     {
@@ -29,7 +33,7 @@ export default postHandler(async (req) => {
       ...p,
       disabled: false,
       createdAt: FieldValue.serverTimestamp(),
-      createdBy: invite.data()!.invitedBy ?? 'invite',
+      createdBy: data.invitedBy ?? 'invite',
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: caller.uid,
     },

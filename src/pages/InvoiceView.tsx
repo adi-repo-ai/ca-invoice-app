@@ -181,6 +181,7 @@ export default function InvoiceView() {
   return (
     <div className="space-y-4">
       <PageHeader
+        back={{ to: '/invoices', label: 'Invoices' }}
         title={
           <span className="flex flex-wrap items-center gap-2">
             {inv.number ?? 'Draft invoice'} <StatusBadge status={inv.status} />

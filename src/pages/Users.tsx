@@ -30,11 +30,30 @@ function accessLabel(u: UserRow): { text: string; cls: string } {
   const p = permsOf(u);
   if (u.role === 'ADMIN' && p.fin) return { text: 'Owner · full access', cls: 'bg-[var(--brand)] text-white' };
   if (u.role === 'ADMIN') return { text: p.pay ? 'Admin · no revenue' : 'Admin · no revenue, no payments', cls: 'bg-blue-100 text-blue-800' };
-  return { text: p.pay ? 'Staff · with payments' : 'Staff', cls: 'bg-slate-100 text-slate-700' };
+  return { text: p.pay ? 'Staff · with payments' : 'Staff · no payments', cls: 'bg-slate-100 text-slate-700' };
 }
 interface InviteRow {
   email: string;
   role: Role;
+  fin?: boolean;
+  pay?: boolean;
+}
+
+/** Access levels offered when giving someone access (role + the two permissions). */
+const LEVELS = [
+  { id: 'owner', label: 'Owner · full access', role: 'ADMIN', fin: true, pay: true, ownerOnly: true },
+  { id: 'admin-pay', label: 'Admin · no revenue', role: 'ADMIN', fin: false, pay: true, ownerOnly: true },
+  { id: 'admin', label: 'Admin · no revenue, no payments', role: 'ADMIN', fin: false, pay: false, ownerOnly: false },
+  { id: 'staff-pay', label: 'Staff · with payments', role: 'STAFF', fin: false, pay: true, ownerOnly: false },
+  { id: 'staff', label: 'Staff · no payments', role: 'STAFF', fin: false, pay: false, ownerOnly: true },
+] as const;
+type LevelId = (typeof LEVELS)[number]['id'];
+
+/** Access level an invite will get (invites without permissions get the defaults). */
+function inviteLabel(i: InviteRow): string {
+  const fin = i.role === 'ADMIN' && i.fin === true;
+  const pay = i.pay ?? i.role === 'STAFF';
+  return accessLabel({ role: i.role, fin, pay } as UserRow).text;
 }
 
 const ACTIVE_WINDOW_MS = 10 * 60 * 1000; // "Active now" = seen in the last 10 minutes
@@ -59,7 +78,7 @@ export default function Users() {
   const [invites, setInvites] = useState<InviteRow[]>([]);
   const [msg, setMsg] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
   const [busy, setBusy] = useState('');
-  const [form, setForm] = useState({ email: '', role: 'STAFF' as Role });
+  const [form, setForm] = useState({ email: '', level: 'staff-pay' as LevelId });
 
   const load = useCallback(async () => {
     const [u, i] = await Promise.all([getDocs(collection(db, 'users')), getDocs(collection(db, 'invites'))]);
@@ -94,9 +113,12 @@ export default function Users() {
     setBusy('invite');
     setMsg(null);
     try {
-      await setDoc(doc(db, 'invites', email), { email, role: form.role, invitedBy: user!.uid, invitedAt: serverTimestamp() });
-      setForm({ email: '', role: 'STAFF' });
-      setMsg({ kind: 'success', text: `${email} can now sign in with Google (as ${form.role}).` });
+      const level = LEVELS.find((l) => l.id === form.level)!;
+      // Owners record the chosen permissions; other admins' invites use the defaults.
+      const perms = iAmOwner ? { fin: level.fin, pay: level.pay } : {};
+      await setDoc(doc(db, 'invites', email), { email, role: level.role, ...perms, invitedBy: user!.uid, invitedAt: serverTimestamp() });
+      setForm({ email: '', level: 'staff-pay' });
+      setMsg({ kind: 'success', text: `${email} can now sign in with Google (as ${level.label}).` });
       await load();
     } catch (err) {
       setMsg({ kind: 'error', text: errorMessage(err) });
@@ -121,14 +143,20 @@ export default function Users() {
       </div>
 
       <Card title="Give someone access">
-        <form onSubmit={invite} className="grid gap-4 sm:grid-cols-[1fr_180px_auto] sm:items-end">
+        <form onSubmit={invite} className="grid gap-4 sm:grid-cols-[1fr_260px_auto] sm:items-end">
           <Field label="Google email address" hint="They sign in with this Google account (e.g. name@gmail.com).">
             <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </Field>
-          <Field label="Role" hint="New ADMINs start without revenue or payments access; STAFF start with payments. An owner can change this once they have joined.">
-            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}>
-              <option value="STAFF">STAFF</option>
-              <option value="ADMIN">ADMIN</option>
+          <Field
+            label="Access level"
+            hint={iAmOwner ? 'You can change this later under People with access.' : 'Only an owner can give revenue access or change payments access.'}
+          >
+            <select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value as LevelId })}>
+              {LEVELS.filter((l) => iAmOwner || !l.ownerOnly).map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
+                </option>
+              ))}
             </select>
           </Field>
           <Button type="submit" busy={busy === 'invite'} className="sm:mb-6">
@@ -144,7 +172,7 @@ export default function Users() {
               <li key={i.email} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div>
                   <div className="font-medium">{i.email}</div>
-                  <div className="text-sm text-slate-500">{i.role} · invited</div>
+                  <div className="text-sm text-slate-500">{inviteLabel(i)} · invited</div>
                 </div>
                 <Button
                   variant="ghost"
