@@ -26,6 +26,7 @@ export interface ClientRow extends Client {
 }
 
 export const CLIENT_PAGE_SIZE = 20;
+const TAG_FALLBACK_MAX = 500;
 
 /** Prefix search on name, paginated (one read per returned client). */
 export async function listClients(
@@ -109,7 +110,20 @@ export async function listClientsByTag(
   const parts = [where('tags', 'array-contains', tag), orderBy('nameLower')] as Parameters<typeof query>[1][];
   if (after) parts.push(startAfter(after));
   parts.push(limit(CLIENT_PAGE_SIZE + 1));
-  const snap = await getDocs(query(collection(db, 'clients'), ...parts));
+  let snap;
+  try {
+    snap = await getDocs(query(collection(db, 'clients'), ...parts));
+  } catch (e) {
+    // The tags + name index is missing or still building (e.g. right after a
+    // rules/indexes deploy). Fall back to the tag filter alone, which needs no
+    // extra index, and sort A–Z here. One page of up to TAG_FALLBACK_MAX clients.
+    if ((e as { code?: string }).code !== 'failed-precondition' || after) throw e;
+    const all = await getDocs(query(collection(db, 'clients'), where('tags', 'array-contains', tag), limit(TAG_FALLBACK_MAX)));
+    const rows = all.docs
+      .map((d) => ({ id: d.id, ...(d.data() as Client) }))
+      .sort((a, b) => (a.nameLower ?? '').localeCompare(b.nameLower ?? ''));
+    return { rows, last: null, hasMore: false };
+  }
   const docs = snap.docs.slice(0, CLIENT_PAGE_SIZE);
   return {
     rows: docs.map((d) => ({ id: d.id, ...(d.data() as Client) })),

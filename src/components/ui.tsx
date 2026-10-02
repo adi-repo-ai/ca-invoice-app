@@ -144,6 +144,8 @@ export function errorMessage(e: unknown): string {
   const code = (e as { code?: string })?.code;
   if (code === 'permission-denied') return 'You do not have permission to do that (or the data failed validation).';
   if (code === 'unavailable') return 'You appear to be offline. Please try again.';
+  if (code === 'failed-precondition' && /index/i.test((e as Error)?.message ?? ''))
+    return 'The database is still preparing this view (a search index is being built after an update). Please try again in a few minutes.';
   return (e as Error)?.message ?? String(e);
 }
 
