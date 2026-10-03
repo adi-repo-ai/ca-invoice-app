@@ -1,8 +1,8 @@
-// ADMIN-only user management: create staff users, change roles, disable /
-// enable / delete accounts, set a new password, and (owners only) set who can
-// see revenue and record payments. Admins who are not owners cannot change or
-// remove an owner. Every call verifies the caller's
-// Firebase ID token and ADMIN claim before doing anything.
+// Owner-only user management: create users, change roles, disable / enable /
+// delete accounts, set a new password, and set who can see revenue and record
+// payments. An owner is an ADMIN with the revenue permission; other admins can
+// view the Users list but not change it. Every call verifies the caller's
+// Firebase ID token and owner status before doing anything.
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb } from './_shared/admin';
 import { HttpError, defaultPerms, isOwner, perms, postHandler, readJson, requireRole, type Role } from './_shared/http';
@@ -42,6 +42,7 @@ export default postHandler(async (req) => {
   const db = adminDb();
   const stamp = { updatedAt: FieldValue.serverTimestamp(), updatedBy: caller.uid };
   const callerIsOwner = isOwner(caller as Record<string, unknown>);
+  if (!callerIsOwner) throw new HttpError(403, 'Only an owner (an admin who can see revenue) can add, change or remove users');
   /** Current claims of another user; refuses if a non-owner tries to touch an owner. */
   async function targetClaims(uid: string): Promise<Record<string, unknown>> {
     let claims: Record<string, unknown> = {};

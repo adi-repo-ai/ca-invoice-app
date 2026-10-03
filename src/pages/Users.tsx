@@ -41,11 +41,11 @@ interface InviteRow {
 
 /** Access levels offered when giving someone access (role + the two permissions). */
 const LEVELS = [
-  { id: 'owner', label: 'Owner · full access', role: 'ADMIN', fin: true, pay: true, ownerOnly: true },
-  { id: 'admin-pay', label: 'Admin · no revenue', role: 'ADMIN', fin: false, pay: true, ownerOnly: true },
-  { id: 'admin', label: 'Admin · no revenue, no payments', role: 'ADMIN', fin: false, pay: false, ownerOnly: false },
-  { id: 'staff-pay', label: 'Staff · with payments', role: 'STAFF', fin: false, pay: true, ownerOnly: false },
-  { id: 'staff', label: 'Staff · no payments', role: 'STAFF', fin: false, pay: false, ownerOnly: true },
+  { id: 'owner', label: 'Owner · full access', role: 'ADMIN', fin: true, pay: true },
+  { id: 'admin-pay', label: 'Admin · no revenue', role: 'ADMIN', fin: false, pay: true },
+  { id: 'admin', label: 'Admin · no revenue, no payments', role: 'ADMIN', fin: false, pay: false },
+  { id: 'staff-pay', label: 'Staff · with payments', role: 'STAFF', fin: false, pay: true },
+  { id: 'staff', label: 'Staff · no payments', role: 'STAFF', fin: false, pay: false },
 ] as const;
 type LevelId = (typeof LEVELS)[number]['id'];
 
@@ -152,28 +152,31 @@ export default function Users() {
         <Stat label="Waiting to sign in" value={invites.length} />
       </div>
 
-      <Card title="Add a user">
-        <form onSubmit={invite} className="grid gap-4 sm:grid-cols-[1fr_260px_auto] sm:items-end">
-          <Field label="Google email address" hint="They sign in with this Google account (e.g. name@gmail.com).">
-            <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          </Field>
-          <Field
-            label="Access level"
-            hint={iAmOwner ? 'You can change this later under People with access.' : 'Only an owner can give revenue access or change payments access.'}
-          >
-            <select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value as LevelId })}>
-              {LEVELS.filter((l) => iAmOwner || !l.ownerOnly).map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Button type="submit" busy={busy === 'invite'} className="sm:mb-6">
-            Add user
-          </Button>
-        </form>
-      </Card>
+      {!iAmOwner && (
+        <Alert kind="info">Only an owner (an admin who can see revenue) can add, change or remove users. You can see who has access below.</Alert>
+      )}
+
+      {iAmOwner && (
+        <Card title="Add a user">
+          <form onSubmit={invite} className="grid gap-4 sm:grid-cols-[1fr_260px_auto] sm:items-end">
+            <Field label="Google email address" hint="They sign in with this Google account (e.g. name@gmail.com).">
+              <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            </Field>
+            <Field label="Access level" hint="You can change this later under People with access.">
+              <select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value as LevelId })}>
+                {LEVELS.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Button type="submit" busy={busy === 'invite'} className="sm:mb-6">
+              Add user
+            </Button>
+          </form>
+        </Card>
+      )}
 
       {invites.length > 0 && (
         <Card title="Waiting to sign in for the first time">
@@ -184,17 +187,19 @@ export default function Users() {
                   <div className="font-medium">{i.email}</div>
                   <div className="text-sm text-slate-500">{inviteLabel(i)} · invited</div>
                 </div>
-                <Button
-                  variant="ghost"
-                  className="!text-red-600"
-                  onClick={async () => {
-                    if (!(await dialog.confirm({ title: `Remove access for ${i.email}?`, confirmText: 'Remove', danger: true }))) return;
-                    await deleteDoc(doc(db, 'invites', i.email)).catch((e) => setMsg({ kind: 'error', text: errorMessage(e) }));
-                    await load();
-                  }}
-                >
-                  Remove
-                </Button>
+                {iAmOwner && (
+                  <Button
+                    variant="ghost"
+                    className="!text-red-600"
+                    onClick={async () => {
+                      if (!(await dialog.confirm({ title: `Remove access for ${i.email}?`, confirmText: 'Remove', danger: true }))) return;
+                      await deleteDoc(doc(db, 'invites', i.email)).catch((e) => setMsg({ kind: 'error', text: errorMessage(e) }));
+                      await load();
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -260,7 +265,7 @@ export default function Users() {
                       {busy === u.uid + 'perm' && <span className="text-xs text-slate-500">Saving…</span>}
                     </div>
                   )}
-                  {!self && (iAmOwner || !(u.role === 'ADMIN' && permsOf(u).fin)) && (
+                  {!self && iAmOwner && (
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="secondary"

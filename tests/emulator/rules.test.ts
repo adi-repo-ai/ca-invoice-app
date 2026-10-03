@@ -349,16 +349,18 @@ describe('invites, last-seen and personal items', () => {
     await assertFails(getDoc(doc(fs(asStaff(env)), 'invites/new@gmail.com')));
   });
 
-  it('only an owner can set access-level permissions on an invite', async () => {
+  it('only an owner can add people (with any access level)', async () => {
     const base = { email: 'lvl@gmail.com', role: 'ADMIN', invitedBy: ADMIN.uid, invitedAt: serverTimestamp() };
     const owner = fs(asAdmin(env)); // legacy ADMIN without the flag counts as owner
     const adminB = fs(env.authenticatedContext(ADMIN.uid, { role: 'ADMIN', email: ADMIN.email, fin: false, pay: false }));
     await assertSucceeds(setDoc(doc(owner, 'invites/lvl@gmail.com'), { ...base, fin: true, pay: true }));
     await assertFails(setDoc(doc(owner, 'invites/lvl@gmail.com'), { ...base, role: 'STAFF', fin: true }));
     await assertFails(setDoc(doc(owner, 'invites/lvl@gmail.com'), { ...base, fin: 'yes' }));
+    // Admins who are not owners cannot add people at all, but can see the list.
     await assertFails(setDoc(doc(adminB, 'invites/lvl@gmail.com'), { ...base, fin: true }));
-    await assertFails(setDoc(doc(adminB, 'invites/lvl@gmail.com'), { ...base, pay: true }));
-    await assertSucceeds(setDoc(doc(adminB, 'invites/lvl@gmail.com'), base));
+    await assertFails(setDoc(doc(adminB, 'invites/other@gmail.com'), { ...base, email: 'other@gmail.com' }));
+    await assertFails(deleteDoc(doc(adminB, 'invites/lvl@gmail.com')));
+    await assertSucceeds(getDoc(doc(adminB, 'invites/lvl@gmail.com')));
   });
 
   it('users can only update their own lastSeenAt', async () => {

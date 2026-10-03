@@ -76,7 +76,7 @@ describe('admin-users function', () => {
     expect(selfDelete.status).toBe(400);
   });
 
-  it('permissions: new admins start limited; only an owner changes access; owners are protected', async () => {
+  it('permissions: new admins start limited; only an owner manages users and access', async () => {
     const claimsOf = async (uid: string) => (await adminAuth().getUser(uid)).customClaims;
     // A new ADMIN starts as "Admin B": no revenue, no payments. A new STAFF starts with payments.
     const b = (await (await handler(post('admin-users', { action: 'create', email: 'adminb@example.com', password: 'adminb123', displayName: 'B', role: 'ADMIN' }, adminToken))).json()) as { uid: string };
@@ -90,8 +90,12 @@ describe('admin-users function', () => {
     expect((await handler(post('admin-users', { action: 'setPerms', uid: st.uid, fin: false, pay: false }, bToken))).status).toBe(403);
     expect((await handler(post('admin-users', { action: 'disable', uid: adminUid }, bToken))).status).toBe(403);
     expect((await handler(post('admin-users', { action: 'setRole', uid: adminUid, role: 'STAFF' }, bToken))).status).toBe(403);
-    // ...but can still manage staff, and a role change never grants revenue access.
-    expect((await handler(post('admin-users', { action: 'setRole', uid: st.uid, role: 'ADMIN' }, bToken))).status).toBe(200);
+    // ...nor add, change or remove anyone else: only owners manage users.
+    expect((await handler(post('admin-users', { action: 'setRole', uid: st.uid, role: 'ADMIN' }, bToken))).status).toBe(403);
+    expect((await handler(post('admin-users', { action: 'disable', uid: st.uid }, bToken))).status).toBe(403);
+    expect((await handler(post('admin-users', { action: 'create', email: 'x@example.com', password: 'xxxx12345', displayName: 'X', role: 'STAFF' }, bToken))).status).toBe(403);
+    // A role change by the owner never grants revenue access.
+    expect((await handler(post('admin-users', { action: 'setRole', uid: st.uid, role: 'ADMIN' }, adminToken))).status).toBe(200);
     expect(await claimsOf(st.uid)).toEqual({ role: 'ADMIN', fin: false, pay: true });
 
     // The owner can switch access on and off; revenue access is for admins only.
