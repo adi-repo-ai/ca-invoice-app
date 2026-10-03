@@ -112,16 +112,26 @@ export default function Users() {
     if (rows?.some((r) => r.email.toLowerCase() === email)) return setMsg({ kind: 'error', text: `${email} already has access.` });
     setBusy('invite');
     setMsg(null);
+    let perms: { fin?: boolean; pay?: boolean } = {};
     try {
       const level = LEVELS.find((l) => l.id === form.level)!;
-      // Owners record the chosen permissions; other admins' invites use the defaults.
-      const perms = iAmOwner ? { fin: level.fin, pay: level.pay } : {};
+      // Only levels that differ from the role's defaults are written on the invite
+      // (owners only); default levels need nothing extra.
+      const isDefault = !level.fin && level.pay === (level.role === 'STAFF');
+      perms = isDefault ? {} : { fin: level.fin, pay: level.pay };
       await setDoc(doc(db, 'invites', email), { email, role: level.role, ...perms, invitedBy: user!.uid, invitedAt: serverTimestamp() });
       setForm({ email: '', level: 'staff-pay' });
       setMsg({ kind: 'success', text: `${email} can now sign in with Google (as ${level.label}).` });
       await load();
     } catch (err) {
-      setMsg({ kind: 'error', text: errorMessage(err) });
+      const denied = (err as { code?: string }).code === 'permission-denied';
+      setMsg({
+        kind: 'error',
+        text:
+          denied && 'fin' in perms
+            ? 'Could not save this access level: the database rules on Firebase look out of date. Run the Cloud Shell update command (git pull, then firebase deploy --only firestore:rules,firestore:indexes) and try again.'
+            : errorMessage(err),
+      });
     } finally {
       setBusy('');
     }
@@ -142,7 +152,7 @@ export default function Users() {
         <Stat label="Waiting to sign in" value={invites.length} />
       </div>
 
-      <Card title="Give someone access">
+      <Card title="Add a user">
         <form onSubmit={invite} className="grid gap-4 sm:grid-cols-[1fr_260px_auto] sm:items-end">
           <Field label="Google email address" hint="They sign in with this Google account (e.g. name@gmail.com).">
             <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
@@ -160,7 +170,7 @@ export default function Users() {
             </select>
           </Field>
           <Button type="submit" busy={busy === 'invite'} className="sm:mb-6">
-            Give access
+            Add user
           </Button>
         </form>
       </Card>
