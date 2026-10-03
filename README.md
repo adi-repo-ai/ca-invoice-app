@@ -265,9 +265,9 @@ Changes go to the `staging` branch first; `main` is the live site.
   Authentication → Authorized domains.
 - Rules for the test project: `npx firebase deploy --only firestore:rules,firestore:indexes --project ca-invoice-app-staging`
 - The test site shows a yellow "TEST SITE" banner (any Netlify address containing `--`).
-- Sample data (Cloud Shell, with the TEST project's service-account values exported, after
+- Sample data (Cloud Shell, on the `staging` branch, with the TEST project's key file uploaded, after
   you are an ADMIN there):
-  `npm run seed:test -- --owner you@gmail.com --password 'Test12345' --live`
+  `npm run seed:test -- --key ~/staging-key.json --owner you@gmail.com --password 'Test12345'`
   It refuses any project whose id does not contain "staging" or "test", adds 6 clients,
   18 invoices and a draft, and (with `--password`) the logins `adminb.test@example.com`
   and `staff.test@example.com` for the other two access levels.

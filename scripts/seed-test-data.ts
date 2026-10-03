@@ -1,12 +1,13 @@
 // Load made-up sample data into a TEST Firebase project (e.g. ca-invoice-app-staging),
 // so the staging site has clients, invoices and logins to try every screen with.
 //
-//   Test project:  npm run seed:test -- --owner you@gmail.com --password 'Test12345' --live
+//   Test project:  npm run seed:test -- --key ~/staging-key.json --owner you@gmail.com --password 'Test12345'
 //   Emulator:      npm run seed:test -- --owner admin@example.com --password 'Test12345'
 //
 // Safety: refuses unless the project id contains "staging", "test" or starts with
-// "demo-", so it can never write to the live project. Uses FIREBASE_PROJECT_ID /
-// FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY from the environment or ./.env.
+// "demo-", so it can never write to the live project. Credentials come from --key
+// (the test project's service-account JSON) or FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL /
+// FIREBASE_PRIVATE_KEY in the environment or ./.env (then also pass --live).
 //
 // What it adds:
 // - firm settings for a "Demo" firm (only if none are saved yet)
@@ -22,7 +23,7 @@ import { DEFAULT_SETTINGS, withDefaults } from '../src/lib/defaults';
 import { addDays, formatInvoiceNumber, fyForDate, todayIST } from '../src/lib/fy';
 import { computeInvoice } from '../src/lib/tax';
 import type { Client, FirmSettings } from '../src/lib/types';
-import { arg, flag, loadDotEnv } from './env';
+import { arg, flag, loadDotEnv, loadKeyFile } from './env';
 
 const CLIENTS: (Client & { id: string })[] = [
   ['test-c1', 'Sri Rama Traders', 'Ramesh', '36', 'Telangana', ['Business', 'GST']],
@@ -59,12 +60,12 @@ const PLAN: [number, number, number, 'ISSUED' | 'PAID' | 'CANCELLED', number?][]
 
 async function main() {
   loadDotEnv();
-  const live = flag('live');
+  const live = loadKeyFile() || flag('live');
   if (live) {
     delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
     delete process.env.FIRESTORE_EMULATOR_HOST;
   } else if (!usingEmulators()) {
-    throw new Error('No emulator configured. Pass --live to load test data into the TEST project.');
+    throw new Error('No project given. Add --key path/to/test-project-key.json (the TEST project\'s service-account file).');
   }
   const project = process.env.FIREBASE_PROJECT_ID ?? '';
   if (!/staging|test/i.test(project) && !project.startsWith('demo-')) {
@@ -72,7 +73,7 @@ async function main() {
   }
   const ownerEmail = arg('owner')?.trim().toLowerCase();
   const password = arg('password');
-  if (!ownerEmail) throw new Error('Usage: npm run seed:test -- --owner OWNER_EMAIL [--password TEST_LOGIN_PASSWORD] [--live]');
+  if (!ownerEmail) throw new Error('Usage: npm run seed:test -- --key TEST_KEY.json --owner OWNER_EMAIL [--password TEST_LOGIN_PASSWORD]');
   if (password !== undefined && password.length < 8) throw new Error('--password must be at least 8 characters');
   console.log(`Target: ${live ? 'TEST project' : 'EMULATOR'} "${project}"`);
 

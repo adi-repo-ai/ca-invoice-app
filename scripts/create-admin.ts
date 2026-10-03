@@ -2,6 +2,7 @@
 //
 //   Emulator:  npm run create-admin -- --email you@firm.in --password '...' --name 'Your Name'
 //   Live:      npm run create-admin -- --email ... --password ... --name ... --live
+//   Key file:  npm run create-admin -- --key ~/key.json --email ... --password ... --name ...
 //
 // Uses FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY from
 // the environment or ./.env. Against a live project it refuses to run unless
@@ -9,11 +10,11 @@
 // wrong place by accident.
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, adminDb, usingEmulators } from '../netlify/functions/_shared/admin';
-import { arg, flag, loadDotEnv } from './env';
+import { arg, flag, loadDotEnv, loadKeyFile } from './env';
 
 async function main() {
-  const live = flag('live');
   loadDotEnv();
+  const live = loadKeyFile() || flag('live');
   if (live) {
     // Explicitly targeting the real project: ignore emulator settings.
     delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
