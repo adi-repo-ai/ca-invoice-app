@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { logout, useAuth } from '../auth';
-import { USING_EMULATORS } from '../firebase';
 import { useSettings } from '../settings-context';
 import { CommandPalette } from './CommandPalette';
 import { NotificationBell } from './NotificationBell';
@@ -72,9 +71,6 @@ export function Layout() {
 
   return (
     <div className="min-h-screen">
-      {USING_EMULATORS && (
-        <div className="bg-amber-400 px-4 py-1 text-center text-xs font-medium text-amber-950">Local emulator mode — not real data</div>
-      )}
       <header className="sticky top-0 z-30 bg-[var(--brand)] text-white shadow-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <NavLink to="/" className="flex min-w-0 items-center gap-3">
