@@ -1,0 +1,425 @@
+<!doctype html><html><head><meta charset="utf-8"><title>LKA Invoices – System Architecture</title>
+<style>
+@page { size: A4; margin: 15mm 14mm 17mm; }
+* { box-sizing: border-box; }
+body { font-family: Arial, Helvetica, sans-serif; color:#1f2937; font-size:10pt; line-height:1.45; margin:0; }
+h1 { color:#0c629b; font-size:24pt; margin:0 0 1mm; letter-spacing:.3px; }
+h2 { color:#0c629b; font-size:14pt; border-bottom:2px solid #0c629b; padding-bottom:1.5mm; margin:7mm 0 3mm; page-break-after:avoid; }
+h3 { font-size:11pt; margin:4.5mm 0 1.5mm; page-break-after:avoid; color:#111827; }
+p { margin:1.5mm 0 2mm; }
+.sub { color:#4b5563; margin:0 0 5mm; }
+.pb { page-break-before: always; }
+table { width:100%; border-collapse:collapse; margin:2mm 0 3mm; }
+tr { page-break-inside:avoid; }
+th { background:#0c629b; color:#fff; text-align:left; padding:1.8mm 2.2mm; font-size:9pt; }
+td { border-bottom:1px solid #e5e7eb; padding:1.6mm 2.2mm; vertical-align:top; font-size:9pt; }
+td.k { white-space:nowrap; font-weight:bold; color:#0c629b; }
+code { font-family:"Courier New",monospace; font-size:8.6pt; background:#f1f5f9; padding:0 1mm; border-radius:1mm; }
+ul, ol { margin:1mm 0 2mm 5mm; padding:0 0 0 2mm; } li { margin-bottom:.8mm; }
+.note { background:#fef9c3; border-left:3px solid #ca8a04; padding:2mm 3mm; margin:3mm 0; page-break-inside:avoid; }
+.tip { background:#e0f2fe; border-left:3px solid #0c629b; padding:2mm 3mm; margin:3mm 0; page-break-inside:avoid; }
+.warn { background:#fee2e2; border-left:3px solid #b91c1c; padding:2mm 3mm; margin:3mm 0; page-break-inside:avoid; }
+.fig { margin:2mm 0 1mm; page-break-inside:avoid; text-align:center; }
+.cap { font-size:8.5pt; color:#6b7280; text-align:center; margin:0 0 3mm; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:3mm; }
+.card { border:1px solid #cbd5e1; border-radius:2mm; padding:2.5mm 3mm; page-break-inside:avoid; background:#fafcff; }
+.card b.t { color:#0c629b; display:block; margin-bottom:1mm; }
+.kpi { display:grid; grid-template-columns:repeat(4,1fr); gap:2.5mm; margin:3mm 0; }
+.kpi div { border:1px solid #cbd5e1; border-radius:2mm; padding:2.5mm; text-align:center; background:#f8fbfe; }
+.kpi b { display:block; font-size:13pt; color:#0c629b; }
+.kpi span { font-size:8pt; color:#4b5563; }
+.toc { columns:2; font-size:9.5pt; margin:2mm 0 0; padding-left:5mm; }
+svg text { font-family: Arial, Helvetica, sans-serif; }
+</style></head><body>
+
+<h1>LKA Invoices</h1>
+<p class="sub"><b>System architecture, data flow, security, privacy &amp; maintenance</b><br>
+Lingeshwar Kaparthi &amp; Associates, Chartered Accountants, Siddipet · Internal GST invoice portal<br>
+Live: lingeshwarca-invoice.netlify.app · Code: github.com/adi-repo-ai/ca-invoice-app · Firebase project: ca-invoice-app · Updated October 2026</p>
+
+<div class="kpi">
+  <div><b>₹0 / month</b><span>Free plans only: Firebase Spark, Netlify free, GitHub</span></div>
+  <div><b>3 access levels</b><span>Owner, Admin (no revenue), Staff; invite-only</span></div>
+  <div><b>4 functions</b><span>Small server jobs for admin tasks</span></div>
+  <div><b>84 tests</b><span>46 unit and 38 security / server tests</span></div>
+</div>
+
+<h3>Contents</h3>
+<ol class="toc">
+<li>What the portal does</li><li>Architecture at a glance</li><li>Tool stack</li><li>How it works: key flows</li>
+<li>Data: what is stored and how</li><li>Invoice life cycle</li><li>Security</li><li>Privacy</li>
+<li>Deployment: from code to live site</li><li>Limits and cost</li><li>Future maintenance</li><li>Troubleshooting</li><li>Source code map</li>
+</ol>
+
+<h2>1. What the portal does</h2>
+<p>A private web app for the firm's staff to <b>keep client records, create GST-compliant invoices, and send them</b> to clients as PDFs by email or WhatsApp. It runs in any modern browser on a phone or computer; there is nothing to install.</p>
+<div class="grid2">
+<div class="card"><b class="t">Who uses it</b>Only people added by an ADMIN in Settings → Users (currently two people). Clients never log in; they only receive PDF invoices.</div>
+<div class="card"><b class="t">Main jobs</b>Client list · invoice drafts · issue with automatic numbering (LKA/2026-27/0001) · PDF with UPI QR · email / WhatsApp sharing · payment reminders · receipts · client statements · reports · dashboard with alerts · CSV import/export · activity log · backup.</div>
+</div>
+
+<h2>2. Architecture at a glance</h2>
+<p>The portal has <b>no traditional server of its own</b>. The website runs in the browser and talks directly to Google Firebase for sign-in and data. A few admin-only jobs go through small Netlify server functions that hold the secret admin key.</p>
+<div class="fig">
+<svg width="680" height="430" viewBox="0 0 680 430" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0c629b"/></marker>
+<marker id="g" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#6b7280"/></marker></defs>
+<!-- users -->
+<rect x="250" y="6" width="180" height="44" rx="8" fill="#fff" stroke="#0c629b" stroke-width="1.5"/>
+<text x="340" y="25" text-anchor="middle" font-size="12" font-weight="bold" fill="#0c629b">Firm staff (ADMIN / STAFF)</text>
+<text x="340" y="41" text-anchor="middle" font-size="10" fill="#374151">phone or computer browser</text>
+<line x1="340" y1="50" x2="340" y2="74" stroke="#0c629b" stroke-width="1.6" marker-end="url(#a)"/>
+<!-- browser app -->
+<rect x="150" y="76" width="380" height="104" rx="10" fill="#eef6fc" stroke="#0c629b" stroke-width="2"/>
+<text x="340" y="96" text-anchor="middle" font-size="13" font-weight="bold" fill="#0c629b">THE PORTAL: React web app (runs in the browser)</text>
+<text x="165" y="116" font-size="10" fill="#1f2937">• Screens: Home, Invoices, Clients, Settings, Users, Backup</text>
+<text x="165" y="132" font-size="10" fill="#1f2937">• GST, totals and amount-in-words calculations (money in paise)</text>
+<text x="165" y="148" font-size="10" fill="#1f2937">• Builds the invoice PDF and UPI QR code on the device</text>
+<text x="165" y="164" font-size="10" fill="#1f2937">• Firebase SDK: sign-in token attached to every request</text>
+<!-- arrows down -->
+<line x1="230" y1="180" x2="150" y2="236" stroke="#0c629b" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="120" y="210" font-size="9.5" fill="#0c629b">1 · sign in</text>
+<line x1="330" y1="180" x2="330" y2="236" stroke="#0c629b" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="336" y="212" font-size="9.5" fill="#0c629b">2 · read / write data (~95%)</text>
+<line x1="470" y1="180" x2="560" y2="236" stroke="#0c629b" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="520" y="205" font-size="9.5" fill="#0c629b">3 · admin jobs</text>
+<!-- firebase -->
+<rect x="20" y="238" width="420" height="120" rx="10" fill="#fff8eb" stroke="#d97706" stroke-width="1.8"/>
+<text x="230" y="257" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#b45309">GOOGLE FIREBASE (free Spark plan)</text>
+<rect x="34" y="268" width="120" height="78" rx="6" fill="#fff" stroke="#d97706"/>
+<text x="94" y="286" text-anchor="middle" font-size="10.5" font-weight="bold" fill="#b45309">Authentication</text>
+<text x="94" y="302" text-anchor="middle" font-size="9" fill="#374151">Google sign-in</text>
+<text x="94" y="316" text-anchor="middle" font-size="9" fill="#374151">email fallback</text>
+<text x="94" y="330" text-anchor="middle" font-size="9" fill="#374151">issues ID tokens</text>
+<rect x="164" y="268" width="128" height="78" rx="6" fill="#fff" stroke="#b91c1c" stroke-width="1.5"/>
+<text x="228" y="286" text-anchor="middle" font-size="10.5" font-weight="bold" fill="#b91c1c">Security rules</text>
+<text x="228" y="302" text-anchor="middle" font-size="9" fill="#374151">checks EVERY read</text>
+<text x="228" y="316" text-anchor="middle" font-size="9" fill="#374151">and write: role, fields,</text>
+<text x="228" y="330" text-anchor="middle" font-size="9" fill="#374151">numbering, immutability</text>
+<line x1="292" y1="307" x2="306" y2="307" stroke="#b91c1c" stroke-width="1.5" marker-end="url(#a)"/>
+<rect x="308" y="268" width="122" height="78" rx="6" fill="#fff" stroke="#d97706"/>
+<text x="369" y="286" text-anchor="middle" font-size="10.5" font-weight="bold" fill="#b45309">Firestore DB</text>
+<text x="369" y="302" text-anchor="middle" font-size="9" fill="#374151">invoices · clients</text>
+<text x="369" y="316" text-anchor="middle" font-size="9" fill="#374151">settings · users</text>
+<text x="369" y="330" text-anchor="middle" font-size="9" fill="#374151">counters · auditLog</text>
+<!-- netlify -->
+<rect x="460" y="238" width="200" height="120" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="1.8"/>
+<text x="560" y="257" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#047857">NETLIFY</text>
+<text x="472" y="276" font-size="9.5" fill="#1f2937">• Hosts the website files</text>
+<text x="472" y="292" font-size="9.5" fill="#1f2937">• 4 server functions:</text>
+<text x="482" y="307" font-size="9" fill="#374151">activate · admin-users</text>
+<text x="482" y="321" font-size="9" fill="#374151">claim-admin · reset-numbering</text>
+<text x="472" y="338" font-size="9.5" fill="#1f2937">• Holds the secret admin key</text>
+<line x1="460" y1="300" x2="442" y2="300" stroke="#059669" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="400" y="232" font-size="9" fill="#047857">Admin SDK</text>
+<!-- github -->
+<rect x="460" y="384" width="200" height="40" rx="8" fill="#f3f4f6" stroke="#6b7280"/>
+<text x="560" y="401" text-anchor="middle" font-size="11" font-weight="bold" fill="#374151">GITHUB (source code)</text>
+<text x="560" y="416" text-anchor="middle" font-size="9" fill="#4b5563">push to main → auto build &amp; deploy</text>
+<line x1="560" y1="384" x2="560" y2="360" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#g)"/>
+<!-- client -->
+<rect x="20" y="384" width="270" height="40" rx="8" fill="#fff" stroke="#16a34a" stroke-width="1.4"/>
+<text x="155" y="401" text-anchor="middle" font-size="11" font-weight="bold" fill="#15803d">Client (receives PDF only)</text>
+<text x="155" y="416" text-anchor="middle" font-size="9" fill="#4b5563">via the user's own email / WhatsApp app</text>
+<path d="M150,180 C 0,250 0,350 60,382" fill="none" stroke="#16a34a" stroke-width="1.4" stroke-dasharray="5 3" marker-end="url(#a)"/>
+<text x="300" y="398" font-size="9" fill="#15803d">← PDF goes device → client;</text><text x="300" y="411" font-size="9" fill="#15803d">never uploaded</text>
+</svg></div>
+<p class="cap">Figure 1: System context. Solid arrows carry data over HTTPS with the user's sign-in token. The PDF goes from the device straight to the client.</p>
+
+
+<h2>3. Tool stack</h2>
+<table>
+<tr><th style="width:18%">Layer</th><th style="width:30%">Technology</th><th>Role in the portal</th></tr>
+<tr><td class="k">User interface</td><td>React 19 + TypeScript</td><td>All screens, forms, dialogs; type-checked code catches mistakes before deploy.</td></tr>
+<tr><td class="k">Build</td><td>Vite 8</td><td>Bundles the code into small static files (HTML, JS, CSS) for fast loading.</td></tr>
+<tr><td class="k">Styling</td><td>Tailwind CSS v4</td><td>Brand colours, responsive phone/desktop layout, day/night theme.</td></tr>
+<tr><td class="k">Navigation</td><td>React Router 7</td><td>Pages such as <code>/invoices</code>, <code>/clients/:id</code>, <code>/settings/users</code>; admin-only routes are guarded.</td></tr>
+<tr><td class="k">PDF &amp; QR</td><td>@react-pdf/renderer, qrcode</td><td>Creates the A4 invoice PDF and the UPI "Scan to pay" QR code inside the browser.</td></tr>
+<tr><td class="k">Sign-in</td><td>Firebase Authentication</td><td>Google sign-in (main), email + password (fallback) with password reset. Issues short-lived ID tokens carrying the user's role.</td></tr>
+<tr><td class="k">Database</td><td>Cloud Firestore (NoSQL)</td><td>Stores all business data as documents in collections. Queries use indexes from <code>firestore.indexes.json</code>.</td></tr>
+<tr><td class="k">Access control</td><td>Firestore Security Rules</td><td>Server-side rule file (<code>firestore.rules</code>) that approves or rejects every single read and write.</td></tr>
+<tr><td class="k">Server jobs</td><td>Netlify Functions (Node 22) + Firebase Admin SDK 13</td><td>4 small functions for actions a browser must never be trusted with (roles, deleting accounts, numbering reset, first admin).</td></tr>
+<tr><td class="k">Hosting / CDN</td><td>Netlify</td><td>Serves the site over HTTPS worldwide, adds security headers, builds automatically from GitHub.</td></tr>
+<tr><td class="k">Source control</td><td>GitHub</td><td>Full history of every change; <code>main</code> branch = live site.</td></tr>
+<tr><td class="k">Testing</td><td>Vitest, Firebase Emulators, Playwright</td><td>Unit tests for GST maths, numbering, money and words; emulator tests prove the security rules and functions; browser checks for screens.</td></tr>
+<tr><td class="k">Admin tooling</td><td>Firebase CLI (Cloud Shell)</td><td>Deploys security rules and indexes: <code>npx firebase deploy --only firestore:rules,firestore:indexes</code>.</td></tr>
+</table>
+
+<h2>4. How it works: key flows</h2>
+<h3>4.1 Signing in and getting access</h3>
+<div class="fig">
+<svg width="680" height="250" viewBox="0 0 680 250" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0c629b"/></marker></defs>
+<g font-size="10.5" font-weight="bold" text-anchor="middle">
+<rect x="10" y="4" width="120" height="26" rx="5" fill="#eef6fc" stroke="#0c629b"/><text x="70" y="21" fill="#0c629b">User / Browser</text>
+<rect x="200" y="4" width="130" height="26" rx="5" fill="#fff8eb" stroke="#d97706"/><text x="265" y="21" fill="#b45309">Firebase Auth</text>
+<rect x="390" y="4" width="130" height="26" rx="5" fill="#ecfdf5" stroke="#059669"/><text x="455" y="21" fill="#047857">activate function</text>
+<rect x="560" y="4" width="110" height="26" rx="5" fill="#fff8eb" stroke="#d97706"/><text x="615" y="21" fill="#b45309">Firestore</text></g>
+<g stroke="#cbd5e1" stroke-dasharray="3 3"><line x1="70" y1="30" x2="70" y2="245"/><line x1="265" y1="30" x2="265" y2="245"/><line x1="455" y1="30" x2="455" y2="245"/><line x1="615" y1="30" x2="615" y2="245"/></g>
+<g font-size="9.5" fill="#1f2937">
+<line x1="70" y1="52" x2="262" y2="52" stroke="#0c629b" stroke-width="1.4" marker-end="url(#b)"/><text x="80" y="47">1. "Sign in with Google"</text>
+<line x1="265" y1="76" x2="73" y2="76" stroke="#0c629b" stroke-width="1.4" marker-end="url(#b)"/><text x="100" y="71">2. ID token (no role yet on first visit)</text>
+<line x1="70" y1="102" x2="452" y2="102" stroke="#0c629b" stroke-width="1.4" marker-end="url(#b)"/><text x="80" y="97">3. POST /activate + token</text>
+<line x1="455" y1="126" x2="612" y2="126" stroke="#059669" stroke-width="1.4" marker-end="url(#b)"/><text x="462" y="121">4. is email in invites?</text>
+<line x1="455" y1="150" x2="268" y2="150" stroke="#059669" stroke-width="1.4" marker-end="url(#b)"/><text x="290" y="145">5. set role claim (STAFF/ADMIN)</text>
+<line x1="455" y1="174" x2="612" y2="174" stroke="#059669" stroke-width="1.4" marker-end="url(#b)"/><text x="462" y="169">6. create users/{uid}, delete invite</text>
+<line x1="455" y1="198" x2="73" y2="198" stroke="#0c629b" stroke-width="1.4" marker-end="url(#b)"/><text x="160" y="193">7. ok → browser refreshes token, now carrying the role</text>
+<text x="80" y="226" fill="#b91c1c">Not invited? Step 4 fails → "No access yet" screen; nothing is readable.</text>
+<text x="80" y="241" fill="#374151">Next visits: token already has the role → straight into the app. 30 min idle → automatic sign-out.</text>
+</g></svg></div>
+<p class="cap">Figure 2: First sign-in of an invited person. The role is stored inside the signed token, so it cannot be faked by the browser.</p>
+
+<h3>4.2 Creating and issuing an invoice (direct to Firestore)</h3>
+<div class="fig">
+<svg width="680" height="150" viewBox="0 0 680 150" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="c" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0c629b"/></marker></defs>
+<g font-size="9.3">
+<rect x="4" y="10" width="120" height="86" rx="7" fill="#eef6fc" stroke="#0c629b"/>
+<text x="64" y="28" text-anchor="middle" font-weight="bold" fill="#0c629b">1 · Form</text>
+<text x="12" y="45">client, services,</text><text x="12" y="59">qty, price, notes,</text><text x="12" y="73">signature on/off</text><text x="12" y="87">→ validated</text>
+<line x1="124" y1="53" x2="140" y2="53" stroke="#0c629b" stroke-width="1.5" marker-end="url(#c)"/>
+<rect x="142" y="10" width="125" height="86" rx="7" fill="#eef6fc" stroke="#0c629b"/>
+<text x="204" y="28" text-anchor="middle" font-weight="bold" fill="#0c629b">2 · Calculate</text>
+<text x="150" y="45">money → paise</text><text x="150" y="59">₹5,000 = 500000</text><text x="150" y="73">GST, round-off,</text><text x="150" y="87">amount in words</text>
+<line x1="267" y1="53" x2="283" y2="53" stroke="#0c629b" stroke-width="1.5" marker-end="url(#c)"/>
+<rect x="285" y="10" width="130" height="86" rx="7" fill="#eef6fc" stroke="#0c629b"/>
+<text x="350" y="28" text-anchor="middle" font-weight="bold" fill="#0c629b">3 · Transaction</text>
+<text x="293" y="45">read counters/2026-27</text><text x="293" y="59">invoice → ISSUED,</text><text x="293" y="73">number = last + 1</text><text x="293" y="87">+ audit entry</text>
+<line x1="415" y1="53" x2="431" y2="53" stroke="#0c629b" stroke-width="1.5" marker-end="url(#c)"/>
+<rect x="433" y="10" width="120" height="86" rx="7" fill="#fff" stroke="#b91c1c" stroke-width="1.5"/>
+<text x="493" y="28" text-anchor="middle" font-weight="bold" fill="#b91c1c">4 · Rules check</text>
+<text x="441" y="45">signed in + role?</text><text x="441" y="59">fields &amp; types ok?</text><text x="441" y="73">number = last+1?</text><text x="441" y="87">today's date, FY?</text>
+<line x1="553" y1="53" x2="569" y2="53" stroke="#0c629b" stroke-width="1.5" marker-end="url(#c)"/>
+<rect x="571" y="10" width="105" height="86" rx="7" fill="#fff8eb" stroke="#d97706"/>
+<text x="623" y="28" text-anchor="middle" font-weight="bold" fill="#b45309">5 · Saved</text>
+<text x="579" y="45">all-or-nothing</text><text x="579" y="59">commit; visible</text><text x="579" y="73">to the other</text><text x="579" y="87">user too</text>
+</g>
+<text x="340" y="120" text-anchor="middle" font-size="9.5" fill="#374151">If two people issue at the same moment, Firestore lets only one win; the portal automatically retries the other with the next number.</text>
+<text x="340" y="138" text-anchor="middle" font-size="9.5" fill="#b91c1c">Any failed check → nothing is saved and the user sees "You do not have permission (or the data failed validation)".</text>
+</svg></div>
+<p class="cap">Figure 3: Issuing an invoice. Numbers are gap-free and never duplicated because the counter and invoice are written together.</p>
+
+<h3>4.3 PDF, email and WhatsApp</h3>
+<ol>
+<li><b>View / Download PDF:</b> the browser loads the invoice, draws the A4 PDF with your logo, signature (if switched on) and a UPI QR code (unpaid invoices only). It opens in a tab or downloads. <b>Nothing is uploaded.</b></li>
+<li><b>Send by email / WhatsApp:</b> on phones the share sheet opens with the PDF attached. On computers the PDF downloads and a ready-written Gmail / mail or WhatsApp chat opens for you to attach it.</li>
+<li>A "sent by email / WhatsApp" entry is written to the invoice's history log.</li>
+<li><b>Payment reminders</b> (issued invoices): one click opens WhatsApp or email with a polite reminder showing amount, days overdue and UPI ID. Text only, no attachment.</li>
+<li><b>Receipts</b> (paid invoices): a "RECEIPT" PDF with amount received, TDS and mode; download or send it the same way.</li>
+<li><b>Client statements</b>: on a client's page, a "STATEMENT" PDF for any period listing every invoice and payment with a running balance.</li>
+<li>All message wording comes from editable templates in <b>Settings → Goals &amp; messages</b>. All PDFs (invoice, receipt, statement) are made in the browser and never uploaded.</li>
+</ol>
+
+<h3>4.5 Dashboard, alerts and reports (read-only views)</h3>
+<ul>
+<li><b>Home</b>: today's overdue / to-collect / tasks / events tiles, nudges (old drafts, very late invoices), 6-month chart, monthly goal ring, weekly summary, recent activity, milestones and a getting-started checklist. Uses cheap server-side sums and counts (about 30 reads per visit).</li>
+<li><b>Notification bell</b>: overdue invoices, tasks due, today's events, stale drafts; refreshes every 5 minutes.</li>
+<li><b>Reports</b> (all staff): per financial year, billed vs received by month, collection rate, outstanding by age, top clients and who owes you; CSV export. Reads each invoice of the chosen year once.</li>
+<li><b>Search (Ctrl+K)</b>: clients by name, invoices by number (e.g. "12"), and pages. <b>Activity log</b> (ADMIN): every create / issue / payment / send / cancel / delete, newest first.</li>
+</ul>
+
+<h3>4.4 Admin jobs (through Netlify Functions)</h3>
+<p>Used for: changing roles and access (owners only), disabling / enabling / deleting users (owners only), first-admin setup, restarting numbering.</p>
+<ol>
+<li>The browser sends <code>POST /.netlify/functions/&lt;name&gt;</code> with a small JSON body (e.g. <code>{"action":"delete","uid":"…"}</code>) and the header <code>Authorization: Bearer &lt;ID token&gt;</code>.</li>
+<li>The function verifies the token with Google, checks the caller is <b>ADMIN</b>, validates the input (e.g. "cannot delete yourself").</li>
+<li>It acts with the <b>Admin SDK</b> using the secret service-account key kept only in Netlify's environment variables.</li>
+<li>Replies <code>{"ok":true}</code> or <code>{"error":"…"}</code>, shown as a message in the portal.</li>
+</ol>
+
+
+<h2>5. Data: what is stored and how</h2>
+<p>Firestore stores <b>documents</b> (like small records) grouped in <b>collections</b>. Each invoice keeps its own frozen copy of the client and firm details, so later edits to a client or settings never change an already-issued invoice.</p>
+<table>
+<tr><th style="width:17%">Collection</th><th style="width:43%">What one document holds</th><th>Who can read / write</th></tr>
+<tr><td class="k">settings/firm</td><td>Firm name, address, GSTIN/PAN, bank & UPI, logo, signature, GST switch & rate, services list, prefix, terms, monthly goal, message templates</td><td>All staff read · ADMIN writes</td></tr>
+<tr><td class="k">clients</td><td>Name, contact person, address, state, GSTIN, PAN, email, mobile / WhatsApp, tags (e.g. ITR, GST), internal notes (never printed)</td><td>All staff read, add, edit, delete</td></tr>
+<tr><td class="k">invoices</td><td>Status, number, dates, client snapshot, firm snapshot, items, reimbursements, totals (paise), amount in words, notes, terms, payment details</td><td>All staff; issued invoices locked; numbered ones deletable by ADMIN only</td></tr>
+<tr><td class="k">counters/{FY}</td><td>Last invoice number used in that financial year (e.g. 2026-27 → 12)</td><td>Only moves +1 together with an invoice; reset via function</td></tr>
+<tr><td class="k">auditLog</td><td>Who did what to which invoice and when: create, edit, issue, payment, cancel, delete, sent</td><td>Staff add only; never edited or deleted</td></tr>
+<tr><td class="k">users</td><td>Email, name, role, revenue &amp; payments permissions, disabled flag, last seen time</td><td>Owners manage (via functions); other admins view only; user updates own "last seen"</td></tr>
+<tr><td class="k">invites</td><td>Emails allowed to join, with the access level they will get</td><td>Owners add / remove; admins can view</td></tr>
+<tr><td class="k">tasks, events, notes, links</td><td>Personal Home-page items</td><td>Owner only, private even from admins</td></tr>
+<tr><td class="k">system/bootstrap</td><td>One-time lock for the first-admin setup</td><td>Server only</td></tr>
+</table>
+<div class="tip"><b>Data format details:</b> money is always an integer number of paise (no decimal rounding errors); dates are <code>YYYY-MM-DD</code> in Indian time; financial year runs April–March; invoice numbers look like <code>LKA/2026-27/0001</code>. In transit, the Firebase SDK sends data as encrypted HTTPS (binary protocol); Netlify Functions use JSON over HTTPS.</div>
+
+<h2>6. Invoice life cycle</h2>
+<div class="fig">
+<svg width="680" height="150" viewBox="0 0 680 150" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="d" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#374151"/></marker></defs>
+<g font-size="11" font-weight="bold" text-anchor="middle">
+<rect x="20" y="40" width="110" height="46" rx="23" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/><text x="75" y="68" fill="#334155">DRAFT</text>
+<rect x="230" y="40" width="110" height="46" rx="23" fill="#dbeafe" stroke="#2563eb" stroke-width="1.5"/><text x="285" y="68" fill="#1d4ed8">ISSUED</text>
+<rect x="450" y="6" width="110" height="46" rx="23" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/><text x="505" y="34" fill="#15803d">PAID</text>
+<rect x="450" y="80" width="110" height="46" rx="23" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/><text x="505" y="108" fill="#b91c1c">CANCELLED</text></g>
+<g font-size="9.3" fill="#374151">
+<line x1="130" y1="63" x2="228" y2="63" stroke="#374151" stroke-width="1.4" marker-end="url(#d)"/><text x="138" y="56">Create invoice</text><text x="138" y="78">gets number, locked</text>
+<line x1="340" y1="55" x2="448" y2="32" stroke="#374151" stroke-width="1.4" marker-end="url(#d)"/><text x="360" y="32">Record payment</text>
+<line x1="340" y1="72" x2="448" y2="100" stroke="#374151" stroke-width="1.4" marker-end="url(#d)"/><text x="350" y="104">Cancel + reason (ADMIN)</text>
+<text x="20" y="112">Editable any time;</text><text x="20" y="125">anyone can delete</text>
+<text x="575" y="60">Delete: ADMIN only;</text><text x="575" y="73">number never reused;</text><text x="575" y="86">history entry kept</text>
+<text x="20" y="145" fill="#0c629b">Every arrow writes an auditLog entry (who, when, what). A new financial year (1 April) automatically starts again at 0001.</text>
+</g></svg></div>
+<p class="cap">Figure 4: Invoice states. Issued invoices can't be edited, so numbering and amounts stay trustworthy.</p>
+
+<h2>7. Security</h2>
+<div class="fig">
+<svg width="680" height="170" viewBox="0 0 680 170" xmlns="http://www.w3.org/2000/svg">
+<g font-size="10">
+<rect x="4" y="4" width="672" height="162" rx="10" fill="#f8fafc" stroke="#94a3b8"/>
+<text x="16" y="22" font-weight="bold" fill="#334155">Layer 1 · Network: HTTPS everywhere · security headers (no framing, no sniffing, no camera/mic/location) · hidden from search engines</text>
+<rect x="18" y="32" width="644" height="128" rx="9" fill="#eef6fc" stroke="#0c629b"/>
+<text x="30" y="50" font-weight="bold" fill="#0c629b">Layer 2 · Identity: Google sign-in · invite-only allow list · roles inside signed tokens · 30-minute idle sign-out · disable / delete users</text>
+<rect x="32" y="60" width="616" height="92" rx="8" fill="#fff" stroke="#b91c1c" stroke-width="1.4"/>
+<text x="44" y="78" font-weight="bold" fill="#b91c1c">Layer 3 · Data rules (Google's servers): every read/write checked · deny by default · field types &amp; sizes</text>
+<text x="44" y="93" fill="#374151">· issued invoices immutable · numbering exactly +1 · ADMIN-only settings, cancel, delete · private items owner-only</text>
+<rect x="46" y="102" width="588" height="42" rx="7" fill="#fef2f2" stroke="#dc2626"/>
+<text x="58" y="119" font-weight="bold" fill="#991b1b">Layer 4 · Secrets &amp; audit: admin key only in Netlify env vars (never in code or browser) ·</text>
+<text x="58" y="134" fill="#991b1b">server functions re-verify token + ADMIN · append-only audit log · single-use first-admin setup</text>
+</g></svg></div>
+<p class="cap">Figure 5: Defence in depth. Even someone who bypasses the website cannot get past layers 2–4.</p>
+<table>
+<tr><th style="width:30%">Threat</th><th>How the portal handles it</th></tr>
+<tr><td class="k">Stranger finds the URL</td><td>Sees only the sign-in page; not on the allow list → "No access yet", zero data readable.</td></tr>
+<tr><td class="k">Someone edits browser code</td><td>Useless: all checks are enforced by Google's servers (rules) and the functions, not by the browser.</td></tr>
+<tr><td class="k">Tampering with an issued invoice</td><td>Rules forbid editing issued invoices; only status changes (payment / cancel) are allowed, and each is logged.</td></tr>
+<tr><td class="k">Duplicate or skipped numbers</td><td>Counter and invoice saved together in one transaction; rules require number = last + 1.</td></tr>
+<tr><td class="k">Staff over-reach</td><td>STAFF cannot change settings or users, cancel, or delete invoices or clients (enforced by the rules).</td></tr>
+<tr><td class="k">Revenue / payment need-to-know</td><td>Two per-person permissions in the sign-in token: <b>revenue</b> (totals, Reports, CSV export, Backup) and <b>payments</b> (record payments, receipts, statements). Recording a payment is refused by the rules without it; only an owner (admin with revenue) can change permissions, and other admins cannot change or remove an owner. Individual invoice amounts stay visible to everyone who invoices.</td></tr>
+<tr><td class="k">Leaked Firebase web config</td><td>Normal and safe: it only identifies the project; access still needs sign-in + rules.</td></tr>
+<tr><td class="k">Lost / shared device</td><td>30-minute idle sign-out; ADMIN can Disable the account instantly (signs out everywhere).</td></tr>
+<tr><td class="k">Admin key exposure</td><td>Stored only in Netlify environment variables; never committed to GitHub; never sent to browsers.</td></tr>
+</table>
+
+
+<h2>8. Privacy</h2>
+<div class="grid2">
+<div class="card"><b class="t">What is stored</b>Business records only: firm details, client contact & tax IDs, invoices, payments, staff emails/roles, personal Home notes. No passwords are stored by the app (Google handles sign-in).</div>
+<div class="card"><b class="t">What is NOT stored or sent</b>Invoice PDFs (made on the device) · no analytics, tracking or ads · no third-party data sharing · no card/bank login details.</div>
+<div class="card"><b class="t">Who sees what</b>Signed-in firm users see all invoices & clients (shared work). Each person's tasks, events, notes, links are private to them, even from admins.</div>
+<div class="card"><b class="t">Where it lives</b>Your own Firebase project on Google Cloud, in the region chosen when the database was created (Firebase console → Firestore → Settings). Encrypted in transit and at rest by Google.</div>
+</div>
+<div class="note"><b>Your responsibilities:</b> PDFs downloaded or shared by email / WhatsApp are copies outside the portal. Treat them like any client document. Sign out on shared computers. Remove leavers promptly. Use the backup file carefully: it contains all business data.</div>
+
+<h2>9. Deployment: from code to live site</h2>
+<div class="fig">
+<svg width="680" height="110" viewBox="0 0 680 110" xmlns="http://www.w3.org/2000/svg">
+<defs><marker id="e" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0c629b"/></marker></defs>
+<g font-size="9.5" text-anchor="middle">
+<rect x="4" y="10" width="120" height="56" rx="7" fill="#f3f4f6" stroke="#6b7280"/><text x="64" y="32" font-weight="bold">Change code</text><text x="64" y="48">tests pass locally</text>
+<line x1="124" y1="38" x2="146" y2="38" stroke="#0c629b" stroke-width="1.5" marker-end="url(#e)"/>
+<rect x="148" y="10" width="120" height="56" rx="7" fill="#f3f4f6" stroke="#6b7280"/><text x="208" y="28" font-weight="bold">staging → test</text><text x="208" y="43">then merge into</text><text x="208" y="57">main (live)</text>
+<line x1="268" y1="38" x2="290" y2="38" stroke="#0c629b" stroke-width="1.5" marker-end="url(#e)"/>
+<rect x="292" y="10" width="130" height="56" rx="7" fill="#ecfdf5" stroke="#059669"/><text x="357" y="32" font-weight="bold">Netlify builds</text><text x="357" y="48">npm run build (~1 min)</text>
+<line x1="422" y1="38" x2="444" y2="38" stroke="#0c629b" stroke-width="1.5" marker-end="url(#e)"/>
+<rect x="446" y="10" width="110" height="56" rx="7" fill="#eef6fc" stroke="#0c629b"/><text x="501" y="32" font-weight="bold">Live site</text><text x="501" y="48">+ functions</text>
+<rect x="568" y="10" width="108" height="56" rx="7" fill="#fff8eb" stroke="#d97706"/><text x="622" y="28" font-weight="bold">Rules/indexes</text><text x="622" y="43">changed? deploy</text><text x="622" y="57">from Cloud Shell</text>
+<text x="340" y="88" fill="#374151">Push to staging = test site (0 credits). Merge into main = live site (15 credits). Rules/indexes are deployed separately (manual):</text>
+<text x="340" y="104" fill="#0c629b">cd ca-invoice-app → git pull → npx firebase deploy --only firestore:rules,firestore:indexes --project ca-invoice-app</text>
+</g></svg></div>
+<table>
+<tr><th style="width:32%">Configuration</th><th>Where it is set</th></tr>
+<tr><td class="k">VITE_FIREBASE_* (web config)</td><td>Netlify env vars; public by design, used by the browser. <b>Different value per deploy context</b>: Production → live project, Branch deploys / Deploy Previews → test project.</td></tr>
+<tr><td class="k">FIREBASE_PROJECT_ID / CLIENT_EMAIL / PRIVATE_KEY</td><td>Netlify env vars (Functions scope); <b>secret</b> admin key.</td></tr>
+<tr><td class="k">SETUP_CODE</td><td>Netlify env var; only for first-admin setup (normally test contexts only), then delete.</td></tr>
+<tr><td class="k">Firm details, GST, services, prefix</td><td>In the portal: Settings (stored in Firestore, no code change needed).</td></tr>
+</table>
+
+<h3>9.1 Test site (staging) and the release flow</h3>
+<table>
+<tr><th style="width:20%"></th><th>Live (production)</th><th>Test site</th></tr>
+<tr><td class="k">Git branch</td><td><code>main</code></td><td><code>staging</code></td></tr>
+<tr><td class="k">Address</td><td>lingeshwarca-invoice.netlify.app</td><td>staging--lingeshwarca-invoice.netlify.app (previews: deploy-preview-N--…)</td></tr>
+<tr><td class="k">Firebase project</td><td><code>ca-invoice-app</code> (real data)</td><td><code>ca-invoice-app-staging</code> (made-up data only)</td></tr>
+<tr><td class="k">Netlify cost</td><td>15 credits per deploy</td><td>0 credits</td></tr>
+<tr><td class="k">Marker</td><td>none</td><td>yellow "TEST SITE" banner; owner-only <b>Load sample data</b> button in Settings</td></tr>
+</table>
+<p><b>Release flow:</b> change → push to <code>staging</code> → test on the test site (rules: deploy to the test project) → owner says "deploy" → pull request <code>staging</code> → <code>main</code> (optional Deploy Preview) → merge → live → deploy rules to the live project if they changed. A merge commit containing <code>[skip netlify]</code> updates <code>main</code> without a live build. Full setup steps: <b>docs/LKA-Invoices-Environment-Setup.pdf</b>.</p>
+
+<h2>10. Limits and cost</h2>
+<table>
+<tr><th style="width:32%">Item</th><th style="width:18%">Limit</th><th>Practical meaning</th></tr>
+<tr><td class="k">Invoices per financial year</td><td>9,999</td><td>4-digit numbering; about 27 per day, every day. Restarts each April.</td></tr>
+<tr><td class="k">Clients</td><td>No app limit</td><td>Tens of thousands fit comfortably.</td></tr>
+<tr><td class="k">Lines per invoice</td><td>50 + 30</td><td>50 service lines and 30 reimbursement lines.</td></tr>
+<tr><td class="k">Firestore storage</td><td>1 GB</td><td>≈150,000–200,000 invoices including history.</td></tr>
+<tr><td class="k">Daily reads / writes / deletes</td><td>50k / 20k / 20k</td><td>Normal day uses a few hundred to ~2,000 reads. Resets ~1:30 pm IST. Over-limit = temporary error, <b>never a charge</b>.</td></tr>
+<tr><td class="k">Cost</td><td>₹0</td><td>Firebase Spark (no card attached), Netlify free tier, GitHub free. No Blaze-plan features are used.</td></tr>
+</table>
+
+
+<h2>11. Future maintenance</h2>
+<h3>11.1 Routine checklist</h3>
+<table>
+<tr><th style="width:18%">How often</th><th>Task</th><th style="width:22%">Who</th></tr>
+<tr><td class="k">Monthly</td><td>Settings → Backup → download and store safely (Drive / USB). The free plan has no automatic backups.</td><td>ADMIN</td></tr>
+<tr><td class="k">Monthly</td><td>Review Settings → Users: remove leavers, check roles, keep 2 admins.</td><td>ADMIN</td></tr>
+<tr><td class="k">Quarterly</td><td>Firebase console → Firestore → Usage: confirm well under limits.</td><td>ADMIN</td></tr>
+<tr><td class="k">Every 6 months</td><td>Update libraries (<code>npm outdated</code>, <code>npm update</code>), run <code>npm run test:all</code> and <code>npm run build</code>, then push.</td><td>Developer</td></tr>
+<tr><td class="k">Each April</td><td>Nothing needed: numbering restarts automatically for the new FY. Optionally check the Settings prefix and terms.</td><td>Automatic</td></tr>
+<tr><td class="k">When GST rules / rate change</td><td>Settings → Invoicing: GST switch and rate. If registered for GST, consider restoring "Tax Invoice" title and CGST/SGST split (code change in <code>src/pdf/InvoicePdf.tsx</code>).</td><td>ADMIN / Developer</td></tr>
+</table>
+<h3>11.2 How to make a change safely</h3>
+<ol>
+<li>Edit code in a copy of the GitHub repo (or ask a developer / AI assistant). Most visual changes: <code>src/pages/*</code>; PDF layout: <code>src/pdf/InvoicePdf.tsx</code>; GST maths: <code>src/lib/tax.ts</code>; permissions: <code>firestore.rules</code>.</li>
+<li>Run checks: <code>npx tsc -b</code> (types), <code>npm run test:all</code> (93 tests incl. security), <code>npm run build</code>.</li>
+<li>Try it locally with emulators (<code>npm run seed:emulator</code>, demo data, no real data touched).</li>
+<li>Push to <code>staging</code> → test on the test site (deploy changed rules with <code>--project ca-invoice-app-staging</code>). When approved, merge <code>staging</code> into <code>main</code> → Netlify deploys live; deploy changed rules with <code>--project ca-invoice-app</code> (section 9).</li>
+<li>To undo a bad release: Netlify → Deploys → pick the previous deploy → <b>Publish deploy</b> (instant rollback).</li>
+</ol>
+<h3>11.3 Restoring data</h3>
+<p>The backup is a JSON file of settings, clients, invoices, counters and audit log. There is no one-click restore screen; restoring is done by a developer with a small script using the Admin key. Keep backups in a safe, private location.</p>
+<h3>11.4 Possible future enhancements</h3>
+<ul>
+<li>Custom domain (e.g. invoices.yourfirm.in): about ₹800–1,200/year for the domain; Netlify provides HTTPS free.</li>
+<li>Automatic email sending from the portal and login alerts (need an email service such as Brevo free tier + a Netlify function).</li>
+<li>Recurring invoices for retainer clients; mobile app experience (installable app, bottom navigation, swipe actions).</li>
+<li>One-click restore from backup; scheduled automatic backups; Excel export for Tally.</li>
+<li>Client portal, online payments (Razorpay / Cashfree), multi-branch, e-invoicing (IRN) if GST turnover requires it.</li>
+</ul>
+<p>The full prioritised list, with effort and cost for each item, is in <b>docs/LKA-Invoices-Future-Enhancements.pdf</b> (Word copy alongside).</p>
+
+<h3>11.5 Where roles live</h3>
+<p>Roles and the two permissions are <b>stored in Firebase</b> (on each person's sign-in account, with a copy in <code>users</code>) and <b>enforced by the Firebase security rules</b> on every read and write. They are <b>changed only by the Netlify functions</b>, because changing them needs the Firebase admin key, which lives only in Netlify's environment variables. The browser can ask, but can never set a role itself.</p>
+
+<h3>11.6 If you lose access to Google, Firebase or Netlify</h3>
+<table>
+<tr><th style="width:24%">Lost</th><th>What to do</th></tr>
+<tr><td class="k">Google account</td><td>Google account recovery (recovery phone / email, printed backup codes). If a second Owner was added to the Firebase project, sign in with that account and carry on.</td></tr>
+<tr><td class="k">Netlify</td><td>Data is safe in Firebase. New Netlify account → Import from GitHub → paste the environment variables (or create a new Firebase service-account key) → deploy → add the new site address under Firebase Authentication → Authorized domains.</td></tr>
+<tr><td class="k">Firebase, no second owner</td><td>New Firebase project (Spark) → deploy rules and indexes → restore the latest backup file (needs the planned restore tool) → update Netlify variables → recreate the first admin with <code>SETUP_CODE</code>. Anything after the last backup is lost.</td></tr>
+<tr><td class="k">Portal admin login</td><td>Set <code>SETUP_CODE</code> in Netlify, delete <code>system/bootstrap</code> in the Firestore console, claim admin on the site, then remove <code>SETUP_CODE</code>. Or run <code>scripts/create-admin.ts</code>.</td></tr>
+<tr><td class="k">GitHub</td><td>The site keeps running. Upload a code copy to a new repository and reconnect Netlify.</td></tr>
+</table>
+<div class="tip"><b>Prevent it:</b> second Firebase Owner; second Netlify and GitHub member; 2-step verification everywhere; monthly backups; an offline pack with the latest backup, Netlify variable values, a code ZIP and backup codes.</div>
+
+<h2>12. Troubleshooting</h2>
+<table>
+<tr><th style="width:38%">Symptom</th><th>Likely cause → fix</th></tr>
+<tr><td class="k">"You do not have permission… or data failed validation"</td><td>Rules on Firebase are older than the code → Cloud Shell: <code>git pull</code> then deploy rules. Or the action needs ADMIN.</td></tr>
+<tr><td class="k">"The query requires an index"</td><td>Indexes not deployed → deploy <code>firestore:indexes</code> from Cloud Shell; wait a few minutes.</td></tr>
+<tr><td class="k">"No access yet" after Google sign-in</td><td>Email not in Settings → Users, or typed differently → add exactly that Google email.</td></tr>
+<tr><td class="k">Admin actions fail with server / token error</td><td>Netlify env vars missing or wrong (FIREBASE_*) → fix in Netlify, redeploy.</td></tr>
+<tr><td class="k">Site shows old version</td><td>Hard refresh (Ctrl+Shift+R); check Netlify Deploys finished.</td></tr>
+<tr><td class="k">Errors late in the day, then fine next day</td><td>Free daily quota reached (rare) → wait for reset (~1:30 pm IST).</td></tr>
+<tr><td class="k">QR code missing on PDF</td><td>No UPI ID in Settings, or invoice already paid / cancelled (by design).</td></tr>
+</table>
+
+<h2>13. Source code map</h2>
+<table>
+<tr><th style="width:30%">Path</th><th>Purpose</th></tr>
+<tr><td class="k">src/pages/</td><td>Screens: Home, Invoices, InvoiceEdit, InvoiceView, Clients, ClientEdit/View, Reports, Settings, Users, Activity, Backup, Login</td></tr>
+<tr><td class="k">src/components/</td><td>Shared pieces: layout & menu, buttons, dialogs, client picker, invoice table, icons, theme toggle</td></tr>
+<tr><td class="k">src/data/</td><td>All database reads/writes: invoices (issue, pay, cancel, delete, counts), clients, settings, audit log, home items, sample data (test site only)</td></tr>
+<tr><td class="k">src/lib/</td><td>Pure logic with unit tests: GST/tax, financial year &amp; numbering, money (paise), amount in words, validation, CSV, messages, reports, test-site detection (siteEnv), defaults</td></tr>
+<tr><td class="k">src/pdf/</td><td>Invoice PDF layout and generation (QR, download, share)</td></tr>
+<tr><td class="k">src/auth.tsx, src/firebase.ts, src/api.ts</td><td>Sign-in state & idle logout; Firebase connection; calls to Netlify functions</td></tr>
+<tr><td class="k">netlify/functions/</td><td>activate, admin-users, claim-admin, reset-numbering (+ shared token checks)</td></tr>
+<tr><td class="k">firestore.rules, firestore.indexes.json</td><td>Security rules and query indexes (deploy from Cloud Shell)</td></tr>
+<tr><td class="k">tests/emulator/, src/lib/*.test.ts</td><td>Security-rule, function and logic tests</td></tr>
+<tr><td class="k">scripts/</td><td>create-admin (first owner; <code>--key</code> file option), seed-emulator, seed-test-data (test project only)</td></tr>
+<tr><td class="k">netlify.toml, README.md, docs/</td><td>Build/hosting config & security headers; setup guide; PDF guides</td></tr>
+</table>
+<p>File-by-file description: <b>docs/LKA-Invoices-Source-Code-Guide.pdf</b>.</p>
+</body></html>

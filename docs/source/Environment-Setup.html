@@ -1,0 +1,116 @@
+<!doctype html><html><head><meta charset="utf-8"><title>LKA Invoices – Environment Setup</title><style>
+@page { size: A4; margin: 16mm 14mm 18mm; }
+body { font-family: Arial, Helvetica, sans-serif; color:#1f2937; font-size:10.5pt; line-height:1.45; }
+h1 { color:#0c629b; font-size:22pt; margin:0 0 2mm; }
+h2 { color:#0c629b; font-size:14pt; border-bottom:2px solid #0c629b; padding-bottom:1.5mm; margin:8mm 0 3mm; page-break-after:avoid; }
+h3 { font-size:11.5pt; margin:5mm 0 2mm; page-break-after:avoid; }
+.sub { color:#4b5563; margin:0 0 6mm; }
+table { width:100%; border-collapse:collapse; margin:2mm 0 4mm; page-break-inside:auto; }
+tr { page-break-inside:avoid; }
+th { background:#0c629b; color:#fff; text-align:left; padding:2mm 2.5mm; font-size:9.5pt; }
+td { border-bottom:1px solid #e5e7eb; padding:1.8mm 2.5mm; vertical-align:top; font-size:9.5pt; }
+td:first-child { white-space:nowrap; }
+code { font-family: "Courier New", monospace; font-size:9pt; background:#f1f5f9; padding:0 1mm; border-radius:1mm; }
+.diagram { display:grid; grid-template-columns:1fr 1fr; gap:4mm; margin:3mm 0; }
+.box { border:1.5px solid #0c629b; border-radius:2mm; padding:3mm; background:#f8fbfe; page-break-inside:avoid; }
+.box b { color:#0c629b; }
+.box ul { margin:1mm 0 0 4mm; padding:0; }
+.full { grid-column: 1 / span 2; }
+.arrow2 { text-align:center; color:#0c629b; font-weight:bold; margin:-1mm 0; }
+.arrow { text-align:center; color:#0c629b; font-weight:bold; grid-column:1 / span 2; margin:-1mm 0; }
+ol li, ul li { margin-bottom:1mm; }
+.note { background:#fef9c3; border-left:3px solid #ca8a04; padding:2mm 3mm; margin:3mm 0; }
+.footer { color:#6b7280; font-size:8.5pt; margin-top:8mm; border-top:1px solid #e5e7eb; padding-top:2mm; }
+
+.ok { color:#15803d; font-weight:bold; } .no { color:#b91c1c; font-weight:bold; }
+.warn { background:#fee2e2; border-left:3px solid #b91c1c; padding:2mm 3mm; margin:3mm 0; }
+.tip { background:#e0f2fe; border-left:3px solid #0c629b; padding:2mm 3mm; margin:3mm 0; }
+td.c { text-align:center; white-space:nowrap; }
+.step { page-break-inside:avoid; }
+body { font-size:9.1pt; line-height:1.3; }
+h2 { margin:3.5mm 0 1.5mm; font-size:12pt; padding-bottom:1mm; }
+td, th { font-size:8.5pt; padding:1.1mm 2mm; }
+ol li, ul li { margin-bottom:0.6mm; }
+code { font-size:8.4pt; }
+.two { display:grid; grid-template-columns:1fr 1fr; gap:5mm; }
+</style></head><body>
+<h1>LKA Invoices</h1>
+<p class="sub" style="margin-bottom:3mm">Environment setup: live (production) and test (staging), step by step for every tool<br>
+Lingeshwar Kaparthi &amp; Associates · Code: github.com/adi-repo-ai/ca-invoice-app · Updated October 2026</p>
+
+<table>
+<tr><th style="width:18%"></th><th>Live (production)</th><th>Test (staging)</th></tr>
+<tr><td class="k">GitHub branch</td><td><code>main</code></td><td><code>staging</code></td></tr>
+<tr><td class="k">Netlify address</td><td>lingeshwarca-invoice.netlify.app</td><td>staging--lingeshwarca-invoice.netlify.app · previews: deploy-preview-N--lingeshwarca-invoice.netlify.app</td></tr>
+<tr><td class="k">Firebase project</td><td><code>ca-invoice-app</code> (real data)</td><td><code>ca-invoice-app-staging</code> (made-up data only)</td></tr>
+<tr><td class="k">Netlify credits</td><td>15 per deploy (free plan: 300 / month)</td><td>0 (branch deploys and previews are free)</td></tr>
+<tr><td class="k">How to tell</td><td>no banner</td><td>yellow "TEST SITE — not real data" banner</td></tr>
+</table>
+
+<h2>1. GitHub (code)</h2>
+<ol>
+<li><b>Branches:</b> repo → branch dropdown (shows <i>main</i>) → type <code>staging</code> → <b>Create branch: staging from main</b> (already done).</li>
+<li><b>Release</b> (= "deploy"): <b>Pull requests → New</b> → base <code>main</code> ← compare <code>staging</code> → Create → <b>Merge</b>. To update <code>main</code> without a live build, put <code>[skip netlify]</code> in the merge commit title.</li>
+<li>After a release, bring <code>staging</code> level with <code>main</code> (pull request <code>main</code> → <code>staging</code>, or "Update branch").</li>
+</ol>
+
+<h2>2. Firebase (data and sign-in) — create the test project once</h2>
+<div class="two"><ol>
+<li>console.firebase.google.com → <b>Add project</b> → <code>ca-invoice-app-staging</code>, Analytics off, <b>Spark</b> (free) plan.</li>
+<li><b>Build → Authentication → Get started</b> → enable <b>Google</b> and <b>Email/Password</b>.</li>
+<li><b>Build → Firestore Database → Create database</b> → production mode, same region as live. (If it says "already exists", it is done; never create a second named database.)</li>
+<li><b>Authentication → Settings → Authorized domains → Add</b> <code>staging--lingeshwarca-invoice.netlify.app</code> (two dashes).</li>
+</ol><ol start="5">
+<li>⚙ <b>Project settings → General → Your apps → Web (&lt;/&gt;)</b> → register "staging" → copy <code>apiKey, authDomain, projectId, appId</code>.</li>
+<li>⚙ <b>Project settings → Service accounts → Generate new private key</b> → a <code>.json</code> file downloads. <b>Secret:</b> never email, chat or commit it.</li>
+<li>Recommended for both projects: ⚙ <b>Users and permissions</b> → add a second Owner (account-loss protection).</li>
+</ol></div>
+
+<h2>3. Netlify (website and server functions)</h2>
+<ol>
+<li><b>Site configuration → Build &amp; deploy → Branches and deploy contexts → Configure:</b> Production branch <code>main</code>; Branch deploys → <i>Let me add individual branches</i> → <code>staging</code>; Deploy Previews → <i>Any pull request against your production branch</i> (optional).</li>
+<li><b>Site configuration → Environment variables</b> → each variable → <b>Edit → Different value for each deploy context</b>:</li>
+</ol>
+<table>
+<tr><th style="width:30%">Variable</th><th>Production</th><th>Branch deploys + Deploy Previews</th></tr>
+<tr><td class="k">VITE_FIREBASE_API_KEY / AUTH_DOMAIN / PROJECT_ID / APP_ID</td><td>live web config</td><td>test web config (step 2.5)</td></tr>
+<tr><td class="k">FIREBASE_PROJECT_ID</td><td><code>ca-invoice-app</code></td><td>test project id</td></tr>
+<tr><td class="k">FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY (secret)</td><td>live service-account key</td><td><code>client_email</code> / <code>private_key</code> from the test key file (2.6)</td></tr>
+<tr><td class="k">SETUP_CODE (secret, optional)</td><td><b>empty</b></td><td>any text of 12+ characters, only until the first owner exists</td></tr>
+</table>
+<ol start="3">
+<li><b>Deploys → Trigger deploy</b> on the <code>staging</code> branch (or push to it) so the new values are used. Never add <code>VITE_USE_FIREBASE_EMULATORS</code> or <code>…_EMULATOR_HOST</code> here.</li>
+</ol>
+
+<h2>4. Cloud Shell (database rules and indexes)</h2>
+<p>shell.cloud.google.com, signed in with the Google account that owns the projects:</p>
+<table>
+<tr><th style="width:30%">When</th><th>Commands</th></tr>
+<tr><td class="k">First time</td><td><code>git clone https://github.com/adi-repo-ai/ca-invoice-app.git &amp;&amp; cd ca-invoice-app &amp;&amp; npm install</code></td></tr>
+<tr><td class="k">Test project (after rule changes on staging)</td><td><code>cd ~/ca-invoice-app &amp;&amp; git checkout staging &amp;&amp; git pull</code><br><code>npx firebase deploy --only firestore:rules,firestore:indexes --project ca-invoice-app-staging</code></td></tr>
+<tr><td class="k">Live project (after a release with rule changes)</td><td><code>cd ~/ca-invoice-app &amp;&amp; git checkout main &amp;&amp; git pull</code><br><code>npx firebase deploy --only firestore:rules,firestore:indexes --project ca-invoice-app</code></td></tr>
+</table>
+<p>Success ends with <b>✔ Deploy complete!</b>. New indexes take a few minutes to build; the app shows "still preparing this view" meanwhile.</p>
+
+<h2>5. First owner and sample data on the test site</h2>
+<ol>
+<li><b>Owner, option A:</b> open the test site → Sign in with Google → "No access yet" page → enter the test <code>SETUP_CODE</code>. Then delete <code>SETUP_CODE</code> from Netlify.</li>
+<li><b>Owner, option B (no code):</b> upload the test key to Cloud Shell, then <code>npm run create-admin -- --key ~/staging-key.json --email you@gmail.com --password 'TempPass123' --name 'Your Name'</code> and <code>rm ~/staging-key.json</code>.</li>
+<li>Settings → fill in and <b>save firm details</b>.</li>
+<li>Settings → <b>Test site: sample data → Load sample data</b> (6 TEST clients, 10 invoices). Only owners see it, only on test addresses.</li>
+</ol>
+
+<h2>6. Release checklist (every change)</h2>
+<div class="two"><ol>
+<li>Developer pushes to <code>staging</code> (tests + build pass first).</li>
+<li>If rules changed: deploy them to the <b>test</b> project (4).</li>
+<li>Owner tests on the test site as Owner / Admin B / Staff.</li>
+<li>Owner says "deploy" → pull request <code>staging</code> → <code>main</code>.</li>
+</ol><ol start="5">
+<li>Optional: check the Deploy Preview link on the pull request.</li>
+<li><b>Merge</b> → Netlify publishes live in ~2 minutes.</li>
+<li>If rules changed: deploy them to the <b>live</b> project (4).</li>
+<li>Problem? Netlify → Deploys → previous deploy → <b>Publish deploy</b> (instant rollback).</li>
+</ol></div>
+<div class="note"><b>Safety:</b> real client data only on live; keys and setup codes never in chat, email or GitHub; keep 2-step verification on Google, GitHub and Netlify; Firebase stays on the free Spark plan for both projects.</div>
+</body></html>

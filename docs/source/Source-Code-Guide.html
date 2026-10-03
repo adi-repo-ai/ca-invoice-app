@@ -1,0 +1,146 @@
+<!doctype html><html><head><meta charset="utf-8"><title>LKA Invoices – Source Code Guide</title><style>
+@page { size: A4; margin: 16mm 14mm 18mm; }
+body { font-family: Arial, Helvetica, sans-serif; color:#1f2937; font-size:10.5pt; line-height:1.45; }
+h1 { color:#0c629b; font-size:22pt; margin:0 0 2mm; }
+h2 { color:#0c629b; font-size:14pt; border-bottom:2px solid #0c629b; padding-bottom:1.5mm; margin:8mm 0 3mm; page-break-after:avoid; }
+h3 { font-size:11.5pt; margin:5mm 0 2mm; page-break-after:avoid; }
+.sub { color:#4b5563; margin:0 0 6mm; }
+table { width:100%; border-collapse:collapse; margin:2mm 0 4mm; page-break-inside:auto; }
+tr { page-break-inside:avoid; }
+th { background:#0c629b; color:#fff; text-align:left; padding:2mm 2.5mm; font-size:9.5pt; }
+td { border-bottom:1px solid #e5e7eb; padding:1.8mm 2.5mm; vertical-align:top; font-size:9.5pt; }
+td:first-child { white-space:nowrap; }
+code { font-family: "Courier New", monospace; font-size:9pt; background:#f1f5f9; padding:0 1mm; border-radius:1mm; }
+.diagram { display:grid; grid-template-columns:1fr 1fr; gap:4mm; margin:3mm 0; }
+.box { border:1.5px solid #0c629b; border-radius:2mm; padding:3mm; background:#f8fbfe; page-break-inside:avoid; }
+.box b { color:#0c629b; }
+.box ul { margin:1mm 0 0 4mm; padding:0; }
+.full { grid-column: 1 / span 2; }
+.arrow2 { text-align:center; color:#0c629b; font-weight:bold; margin:-1mm 0; }
+.arrow { text-align:center; color:#0c629b; font-weight:bold; grid-column:1 / span 2; margin:-1mm 0; }
+ol li, ul li { margin-bottom:1mm; }
+.note { background:#fef9c3; border-left:3px solid #ca8a04; padding:2mm 3mm; margin:3mm 0; }
+.footer { color:#6b7280; font-size:8.5pt; margin-top:8mm; border-top:1px solid #e5e7eb; padding-top:2mm; }
+
+.ok { color:#15803d; font-weight:bold; } .no { color:#b91c1c; font-weight:bold; }
+.warn { background:#fee2e2; border-left:3px solid #b91c1c; padding:2mm 3mm; margin:3mm 0; }
+.tip { background:#e0f2fe; border-left:3px solid #0c629b; padding:2mm 3mm; margin:3mm 0; }
+td.c { text-align:center; white-space:nowrap; }
+.step { page-break-inside:avoid; }
+body { font-size:9.4pt; line-height:1.36; }
+h2 { margin:6mm 0 2mm; font-size:12.5pt; }
+td, th { font-size:8.6pt; padding:1.3mm 2mm; }
+td:first-child { white-space:normal; width:27%; font-family:"Courier New",monospace; font-size:8.2pt; color:#0c629b; font-weight:bold; }
+.flow { border:1.5px solid #0c629b; border-radius:2mm; background:#f8fbfe; padding:3mm; margin:2mm 0 3mm; }
+</style></head><body>
+<h1>LKA Invoices</h1>
+<p class="sub">Source code guide: what each main file does<br>
+Lingeshwar Kaparthi &amp; Associates · Code: github.com/adi-repo-ai/ca-invoice-app (branches main and staging) · Updated October 2026</p>
+
+<div class="flow"><b>How the pieces fit.</b> The website (React, in <code>src/</code>) runs in the browser. <b>Pages</b> show screens and call the <b>data layer</b> (<code>src/data/</code>), which reads and writes Firestore directly; every write is checked by <code>firestore.rules</code>. Pure calculations (GST, money, numbering) live in <code>src/lib/</code>. PDFs are drawn in the browser by <code>src/pdf/</code>. The few actions a browser must not be trusted with (roles, deleting accounts, first admin, numbering reset) go through <code>src/api.ts</code> to the <b>Netlify Functions</b> in <code>netlify/functions/</code>, which use the secret Firebase admin key. Money is always whole <b>paise</b> (₹1 = 100) to avoid rounding errors.</div>
+
+<h2>1. App shell</h2>
+<table>
+<tr><th>File</th><th>What it does</th></tr>
+<tr><td>src/main.tsx</td><td>Starting point: mounts the app with the router and the sign-in provider.</td></tr>
+<tr><td>src/App.tsx</td><td>All page addresses (routes) and the guards: signed-in only, admins only, revenue (owner) only. Shows the TEST SITE banner.</td></tr>
+<tr><td>src/firebase.ts</td><td>Connects to Firebase (sign-in + Firestore) using the <code>VITE_FIREBASE_*</code> values; switches to the local emulators in development.</td></tr>
+<tr><td>src/auth.tsx</td><td>Who is signed in, their role (ADMIN/STAFF) and permissions (revenue <code>fin</code>, payments <code>pay</code>) from the signed token; 30-minute idle sign-out; <code>useActor()</code> for audit entries.</td></tr>
+<tr><td>src/api.ts</td><td>Calls a Netlify Function with the user's sign-in token attached.</td></tr>
+<tr><td>src/settings-context.tsx</td><td>Loads firm settings once per visit and shares them with every page.</td></tr>
+<tr><td>src/theme.ts</td><td>Light / dark / follow-device theme, remembered per device.</td></tr>
+</table>
+
+<h2>2. Pages (src/pages/)</h2>
+<table>
+<tr><th>File</th><th>Screen and main logic</th></tr>
+<tr><td>Login.tsx</td><td>Google sign-in (main), email + password (fallback), forgot password, "No access yet" page with the one-time setup code.</td></tr>
+<tr><td>Home.tsx</td><td>Dashboard: today panel, nudges, revenue tiles, 6-month chart and goal ring (owners), weekly summary, recent activity, milestones, personal tasks / events / notes / links, getting-started checklist.</td></tr>
+<tr><td>Invoices.tsx</td><td>Invoice list: status tabs with counts, client and date filters, Newest / Oldest sort, hide amounts, CSV export (owners), delete one / delete all (admins).</td></tr>
+<tr><td>InvoiceEdit.tsx</td><td>Create or edit a draft: client, service lines, reimbursements, live totals; save draft or issue (gets the next number); duplicate via <code>?from=</code>.</td></tr>
+<tr><td>InvoiceView.tsx</td><td>One invoice: view / download PDF, email / WhatsApp, payment reminder, mark as paid and receipt (payments permission), cancel, duplicate, delete, history; back link to Invoices.</td></tr>
+<tr><td>Clients.tsx</td><td>Client list: name search (also finds an invoice by number), tag filter, A–Z / newest, CSV import and template (admins), delete (admins).</td></tr>
+<tr><td>ClientEdit.tsx / ClientView.tsx</td><td>Add or edit a client (tags, internal notes) / one client's details, statement of account PDF (payments permission) and invoice history.</td></tr>
+<tr><td>Reports.tsx</td><td>Financial-year report (owners): billed vs received, collection rate, ageing, top clients, who owes.</td></tr>
+<tr><td>Settings.tsx</td><td>Firm details, GST, bank / UPI, services (SAC), numbering (restart at 0001), goals and message templates, branding; <b>Test site: sample data</b> card (owners, test addresses only).</td></tr>
+<tr><td>Users.tsx</td><td>Who has access: add a user with an access level, owner-only role / permission switches, disable, delete; read-only for non-owners.</td></tr>
+<tr><td>Activity.tsx / Backup.tsx</td><td>Audit log of who did what (admins) / download a full JSON backup (owners).</td></tr>
+</table>
+
+<h2>3. Shared components (src/components/)</h2>
+<table>
+<tr><th>File</th><th>What it does</th></tr>
+<tr><td>Layout.tsx</td><td>Header, menu (shows only what the person may use), search, bell, keyboard shortcuts, mobile "+" button, footer.</td></tr>
+<tr><td>ui.tsx</td><td>Building blocks used everywhere: Button, Card, Field, Alert, PageHeader (with back link), Money, StatusBadge, Switch, Stat, Empty, Skeleton, Tip, OverdueBadge, and <code>errorMessage()</code> (friendly error text).</td></tr>
+<tr><td>InvoiceTable.tsx</td><td>Invoice rows with status stripe, overdue badge and row actions (view, download, email, WhatsApp, remind, duplicate, delete).</td></tr>
+<tr><td>ClientPicker.tsx / ClientFields.tsx</td><td>Search-as-you-type client chooser / client details typed directly on an invoice.</td></tr>
+<tr><td>CommandPalette.tsx</td><td>Ctrl+K search: clients, invoice numbers, pages.</td></tr>
+<tr><td>NotificationBell.tsx</td><td>Overdue invoices, tasks due, today's events, old drafts.</td></tr>
+<tr><td>Dialog.tsx, Charts.tsx, EnvBanner.tsx</td><td>In-app confirm boxes; small bar / ring charts; the yellow "TEST SITE" / emulator banner.</td></tr>
+<tr><td>SettingsTabs.tsx, ThemeToggle.tsx, icons.tsx</td><td>Settings sub-menu; day/night switch; icons.</td></tr>
+</table>
+
+<h2>4. Data layer (src/data/) — every database read and write</h2>
+<table>
+<tr><th>File</th><th>What it does</th></tr>
+<tr><td>invoices.ts</td><td>The invoice engine: <code>createDraft</code>, <code>updateDraft</code>, <code>issueInvoice</code> (transaction: next number, today's date, firm snapshot), <code>recordPayment</code>, <code>cancelInvoice</code>, <code>deleteInvoices</code>; lists, counts, totals, overdue, search by number. Each change writes an audit entry in the same step.</td></tr>
+<tr><td>clients.ts</td><td>Add / edit / delete clients; name-prefix search, newest list, tag filter (with a fallback while its index builds), count.</td></tr>
+<tr><td>settings.ts</td><td>Load and save the firm settings document.</td></tr>
+<tr><td>audit.ts</td><td>Append-only activity log: add entries, list recent / per invoice, describe them in words.</td></tr>
+<tr><td>home.ts</td><td>Each person's private tasks, events, notes and links.</td></tr>
+<tr><td>sampleData.ts</td><td>Test site only: creates 6 TEST clients and 10 invoices through the normal functions above.</td></tr>
+</table>
+
+<h2>5. Logic library (src/lib/) — pure functions, unit-tested</h2>
+<table>
+<tr><th>File</th><th>What it does</th></tr>
+<tr><td>tax.ts</td><td>GST engine: CGST + SGST (same state) or IGST (other state) or no GST; line totals, rounding, grand total, amount in words.</td></tr>
+<tr><td>money.ts / words.ts</td><td>Rupees ↔ paise, Indian number formatting (1,00,000) / amount in words (thousand, lakh, crore).</td></tr>
+<tr><td>fy.ts</td><td>Indian financial year (April–March), IST date, invoice number format (e.g. LKA/2026-27/0001), date maths.</td></tr>
+<tr><td>types.ts / defaults.ts</td><td>Shapes of every record / starting settings until the owner saves their own.</td></tr>
+<tr><td>validation.ts / states.ts</td><td>GSTIN, PAN, IFSC, email, phone checks / GST state codes.</td></tr>
+<tr><td>messages.ts / send.ts</td><td>Message text from templates, UPI pay link / share or download PDF and open WhatsApp or email.</td></tr>
+<tr><td>report.ts, csv.ts, clientImport.ts</td><td>Report numbers; safe CSV export; CSV client import.</td></tr>
+<tr><td>siteEnv.ts</td><td><code>isTestHost()</code>: true only on Netlify test addresses (with "--"); drives the banner and sample-data card.</td></tr>
+<tr><td>celebrate.ts, image.ts, defaultLogo.ts</td><td>Confetti; logo resizing; default logo.</td></tr>
+</table>
+
+<h2>6. PDFs (src/pdf/) — drawn in the browser</h2>
+<table>
+<tr><th>File</th><th>What it does</th></tr>
+<tr><td>InvoicePdf.tsx</td><td>A4 invoice: header, bill-to, service and reimbursement tables, totals, amount in words, payment details with UPI QR (or "Received with thanks" when paid), signature, terms, PAID / DRAFT / CANCELLED stamp.</td></tr>
+<tr><td>ReceiptPdf.tsx / StatementPdf.tsx</td><td>Payment receipt / client statement of account with running balance.</td></tr>
+<tr><td>common.tsx / generate.ts</td><td>Shared header, footer and styles / turns a layout into a downloadable file with the QR code.</td></tr>
+</table>
+
+<h2>7. Server functions (netlify/functions/) — hold the secret admin key</h2>
+<table>
+<tr><th>File</th><th>What it does</th></tr>
+<tr><td>activate.ts</td><td>On first Google sign-in: if an owner added this email, gives the role and access level; otherwise refuses.</td></tr>
+<tr><td>admin-users.ts</td><td>Owners only: create, change role, set permissions, disable / enable, delete users, set password.</td></tr>
+<tr><td>claim-admin.ts</td><td>One-time: the first person becomes owner with the <code>SETUP_CODE</code>.</td></tr>
+<tr><td>reset-numbering.ts</td><td>Restart this year's numbering at 0001 once no numbered invoice of the year is left.</td></tr>
+<tr><td>_shared/admin.ts, _shared/http.ts</td><td>Admin SDK connection from env vars; token check, role / owner check, default permissions, error replies.</td></tr>
+</table>
+
+<h2>8. Security, configuration, scripts and tests</h2>
+<table>
+<tr><th>File</th><th>What it does</th></tr>
+<tr><td>firestore.rules</td><td><b>The real security.</b> Who may read / write each collection; invoices numbered without gaps; issued invoices locked; payments need the payments permission; deletes admin-only; invites owner-only; audit log append-only.</td></tr>
+<tr><td>firestore.indexes.json</td><td>Search / sort indexes (status + date, client + date, tags + name, …). Deployed from Cloud Shell.</td></tr>
+<tr><td>netlify.toml, firebase.json</td><td>Build settings, security headers, page routing / which rules and indexes files Firebase deploys.</td></tr>
+<tr><td>.env.example, package.json</td><td>List of settings needed (no real values) / libraries and commands (<code>npm run build</code>, <code>test:all</code>, <code>seed:test</code>…).</td></tr>
+<tr><td>scripts/</td><td><code>create-admin</code> (make an owner; <code>--key</code> file option), <code>seed-emulator</code> (local demo), <code>seed-test-data</code> (test project only; refuses live).</td></tr>
+<tr><td>tests/emulator/, src/**/*.test.ts</td><td>93 automated checks: security rules, server functions, numbering, GST, money, words, CSV, reports, test-site detection.</td></tr>
+</table>
+
+<h2>9. Where to change what</h2>
+<table>
+<tr><th>To change…</th><th>Edit</th></tr>
+<tr><td>Invoice PDF look</td><td><code>src/pdf/InvoicePdf.tsx</code> (shared header/footer: <code>src/pdf/common.tsx</code>)</td></tr>
+<tr><td>GST / totals</td><td><code>src/lib/tax.ts</code> (+ its tests)</td></tr>
+<tr><td>Who can do what</td><td><code>firestore.rules</code> + screens (<code>src/App.tsx</code>, pages) + <code>netlify/functions/</code>; then deploy rules</td></tr>
+<tr><td>A screen's layout / buttons</td><td>the file in <code>src/pages/</code></td></tr>
+<tr><td>Firm details, services, templates</td><td>No code: Settings in the portal</td></tr>
+</table>
+</body></html>

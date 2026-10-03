@@ -7,6 +7,9 @@ Plain-language guides (PDF):
 - [`docs/LKA-Invoices-System-Architecture.pdf`](docs/LKA-Invoices-System-Architecture.pdf): architecture, data flow, security, privacy, maintenance and troubleshooting
 - [`docs/LKA-Invoices-Users-Admin-Guide.pdf`](docs/LKA-Invoices-Users-Admin-Guide.pdf): managing admins and users (portal and Firebase console) and portal limits
 - [`docs/LKA-Invoices-Future-Enhancements.pdf`](docs/LKA-Invoices-Future-Enhancements.pdf) ([Word](docs/LKA-Invoices-Future-Enhancements.docx)): roadmap of planned enhancements (restore tool, weekly backup, recurring invoices, mobile and more)
+- [`docs/LKA-Invoices-Environment-Setup.pdf`](docs/LKA-Invoices-Environment-Setup.pdf): live and test (staging) setup steps for GitHub, Firebase, Netlify and Cloud Shell, and the release checklist
+- [`docs/LKA-Invoices-Source-Code-Guide.pdf`](docs/LKA-Invoices-Source-Code-Guide.pdf): what each main source file does, and where to change what
+- [`docs/source/`](docs/source/): HTML sources of these PDFs (edit, then print to PDF)
 
 This README is the handover guide for whoever manages hosting and the domain. Sections 1–3 describe the app;
 section 4 is the production setup checklist; section 5 covers day-to-day operations.

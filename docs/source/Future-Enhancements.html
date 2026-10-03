@@ -1,0 +1,186 @@
+<!doctype html><html><head><meta charset="utf-8"><title>LKA Invoices – Future Enhancements Roadmap</title><style>
+@page { size: A4; margin: 16mm 14mm 18mm; }
+body { font-family: Arial, Helvetica, sans-serif; color:#1f2937; font-size:10.5pt; line-height:1.45; }
+h1 { color:#0c629b; font-size:22pt; margin:0 0 2mm; }
+h2 { color:#0c629b; font-size:14pt; border-bottom:2px solid #0c629b; padding-bottom:1.5mm; margin:8mm 0 3mm; page-break-after:avoid; }
+h3 { font-size:11.5pt; margin:5mm 0 2mm; page-break-after:avoid; }
+.sub { color:#4b5563; margin:0 0 6mm; }
+table { width:100%; border-collapse:collapse; margin:2mm 0 4mm; page-break-inside:auto; }
+tr { page-break-inside:avoid; }
+th { background:#0c629b; color:#fff; text-align:left; padding:2mm 2.5mm; font-size:9.5pt; }
+td { border-bottom:1px solid #e5e7eb; padding:1.8mm 2.5mm; vertical-align:top; font-size:9.5pt; }
+td:first-child { white-space:nowrap; }
+code { font-family: "Courier New", monospace; font-size:9pt; background:#f1f5f9; padding:0 1mm; border-radius:1mm; }
+.diagram { display:grid; grid-template-columns:1fr 1fr; gap:4mm; margin:3mm 0; }
+.box { border:1.5px solid #0c629b; border-radius:2mm; padding:3mm; background:#f8fbfe; page-break-inside:avoid; }
+.box b { color:#0c629b; }
+.box ul { margin:1mm 0 0 4mm; padding:0; }
+.full { grid-column: 1 / span 2; }
+.arrow2 { text-align:center; color:#0c629b; font-weight:bold; margin:-1mm 0; }
+.arrow { text-align:center; color:#0c629b; font-weight:bold; grid-column:1 / span 2; margin:-1mm 0; }
+ol li, ul li { margin-bottom:1mm; }
+.note { background:#fef9c3; border-left:3px solid #ca8a04; padding:2mm 3mm; margin:3mm 0; }
+.footer { color:#6b7280; font-size:8.5pt; margin-top:8mm; border-top:1px solid #e5e7eb; padding-top:2mm; }
+
+.ok { color:#15803d; font-weight:bold; } .no { color:#b91c1c; font-weight:bold; }
+.warn { background:#fee2e2; border-left:3px solid #b91c1c; padding:2mm 3mm; margin:3mm 0; }
+.tip { background:#e0f2fe; border-left:3px solid #0c629b; padding:2mm 3mm; margin:3mm 0; }
+td.c { text-align:center; white-space:nowrap; }
+.step { page-break-inside:avoid; }
+.pill { display:inline-block; border-radius:3mm; padding:0 2mm; font-size:8.5pt; font-weight:bold; }
+.free { background:#dcfce7; color:#166534; } .fee { background:#fef3c7; color:#92400e; } .paid { background:#fee2e2; color:#991b1b; }
+.p1 { background:#0c629b; color:#fff; } .p2 { background:#e0f2fe; color:#0c629b; } .p3 { background:#f1f5f9; color:#475569; }
+</style></head><body>
+<h1>LKA Invoices</h1>
+<p class="sub">Future enhancements roadmap: everything discussed and not yet built<br>
+Lingeshwar Kaparthi &amp; Associates · Live app: lingeshwarca-invoice.netlify.app · Updated October 2026</p>
+
+<div class="tip"><b>How to read this.</b> Items are grouped by area. <b>Priority</b>: <span class="pill p1">Next</span> do soon, <span class="pill p2">Later</span> when useful, <span class="pill p3">Someday</span> only if the firm needs it. <b>Effort</b>: S = about a day, M = a few days, L = a week or more. <b>Cost</b>: <span class="pill free">Free</span> stays on the free Firebase Spark and Netlify plans, <span class="pill fee">Small fee</span> a yearly or per-use charge, <span class="pill paid">Paid</span> needs a paid plan or per-transaction fees.</div>
+
+<h2>1. At a glance: recommended order</h2>
+<table>
+<tr><th>#</th><th>Enhancement</th><th>Why</th><th>Effort</th><th>Cost</th></tr>
+<tr><td>1</td><td><b>Restore tool</b></td><td>Turns a backup file into a working portal again, without a developer.</td><td>M</td><td><span class="pill free">Free</span></td></tr>
+<tr><td>2</td><td><b>Automatic weekly backup by email</b></td><td>Backups no longer depend on someone remembering.</td><td>M</td><td><span class="pill free">Free</span></td></tr>
+<tr><td>3</td><td><b>Recurring invoices</b></td><td>Monthly / quarterly retainer clients get their draft created automatically.</td><td>M</td><td><span class="pill free">Free</span></td></tr>
+<tr><td>4</td><td><b>Install as an app (PWA) + mobile navigation</b></td><td>Home-screen icon, quick to open, easier on phones.</td><td>S–M</td><td><span class="pill free">Free</span></td></tr>
+<tr><td>5</td><td><b>Faster Reports (monthly summaries)</b></td><td>Reports cost ~12 reads instead of thousands as data grows.</td><td>M</td><td><span class="pill free">Free</span></td></tr>
+<tr><td>6</td><td><b>Firebase App Check</b></td><td>Blocks scripted access to the database from outside the website.</td><td>S</td><td><span class="pill free">Free</span></td></tr>
+<tr><td>7</td><td><b>Usage meter</b></td><td>Shows how close the portal is to the free limits.</td><td>S</td><td><span class="pill free">Free</span></td></tr>
+<tr><td>8</td><td><b>Year archive</b></td><td>Keeps the database small for decades.</td><td>M</td><td><span class="pill free">Free</span></td></tr>
+</table>
+
+<h2>2. Data, backup and continuity</h2>
+
+<h3>2.1 Restore tool <span class="pill p1">Next</span> <span class="pill free">Free</span></h3>
+<p>Today, Settings → Backup downloads a JSON file, but there is no way to load it back. The restore tool closes that gap and is the key to recovering from losing a Firebase project.</p>
+<ul>
+<li><b>Who:</b> owners only (ADMIN with Revenue permission). Runs through a Netlify function using the Admin SDK, or as a command-line script for a brand-new project.</li>
+<li><b>Step 1, check:</b> upload the backup file; the tool validates it (format version, firm settings, counters, clients, invoices, users) and shows a dry-run summary: "412 clients, 3,180 invoices, 4 users will be restored".</li>
+<li><b>Step 2, choose:</b> <i>Restore into an empty project</i> (disaster recovery) or <i>Restore only missing records</i> (never overwrites existing data).</li>
+<li><b>Step 3, restore:</b> writes in batches of 500, keeping the original IDs, invoice numbers and financial-year counters so numbering continues correctly. Progress bar; safe to resume if interrupted.</li>
+<li><b>Users:</b> user records are recreated as invites; staff sign in again with Google or set a new password. Roles and permissions are restored.</li>
+<li><b>Audit:</b> a RESTORE entry is written to the activity log.</li>
+<li><b>Free-plan note:</b> the free plan allows 20,000 writes a day. Restores larger than that continue automatically the next day.</li>
+</ul>
+
+<h3>2.2 Automatic weekly backup by email <span class="pill p1">Next</span> <span class="pill free">Free</span></h3>
+<ul>
+<li>A Netlify <b>scheduled function</b> runs every Sunday night (IST), reads all data with the Admin SDK and builds the same backup file as Settings → Backup, compressed (.json.gz).</li>
+<li>Emails it to two owner addresses through a free email service (e.g. Brevo, 300 emails/day free). The SMTP key lives only in Netlify environment variables.</li>
+<li>Owners choose the addresses and can turn it off in Settings → Backup; the page shows "Last automatic backup: Sunday 28 Sep, 11:00 pm ✓".</li>
+<li>Cost: one read per record per week (e.g. 4,000 reads, well within 50,000/day).</li>
+<li>If the file ever grows too large for an email attachment, it switches to a private Google Drive folder instead.</li>
+</ul>
+
+<h3>2.3 Other data items</h3>
+<table>
+<tr><th>Enhancement</th><th>Description</th><th>Priority</th><th>Effort</th></tr>
+<tr><td><b>Faster Reports</b></td><td>Keep running monthly totals (billed, received, by client) updated when invoices are issued or paid. Reports then read ~12 summary records instead of every invoice.</td><td><span class="pill p1">Next</span></td><td>M</td></tr>
+<tr><td><b>Year archive</b></td><td>Export a closed financial year to a file and, optionally, remove it from the database to stay well under the 1 GB free storage.</td><td><span class="pill p2">Later</span></td><td>M</td></tr>
+<tr><td><b>Usage meter</b></td><td>Settings card estimating storage used and today's reads/writes against the free limits.</td><td><span class="pill p2">Later</span></td><td>S</td></tr>
+<tr><td><b>Excel / Tally export</b></td><td>Invoice and payment export formatted for Tally or other accounting software.</td><td><span class="pill p2">Later</span></td><td>M</td></tr>
+<tr><td><b>Download a client's data</b></td><td>One file with everything about a client, for privacy requests.</td><td><span class="pill p3">Someday</span></td><td>S</td></tr>
+</table>
+
+<h3>2.4 Account continuity checklist (owner actions, no code)</h3>
+<ul>
+<li>Add a <b>second Owner</b> to the Firebase project (Project settings → Users and permissions).</li>
+<li>Google account: recovery phone and email, 2-Step Verification, printed backup codes in the office safe.</li>
+<li>Netlify and GitHub: second team member / collaborator, 2FA on, recovery codes saved.</li>
+<li>Offline "break-glass" pack: latest backup, Netlify environment variable values, a code ZIP, backup codes.</li>
+<li>Remove <code>SETUP_CODE</code> from Netlify after setup; rotate the Firebase admin key yearly.</li>
+</ul>
+
+<h2>3. Recurring invoices <span class="pill p1">Next</span> <span class="pill free">Free</span></h2>
+<ul>
+<li>Mark a client service as recurring: monthly accounting, quarterly GST filing, yearly audit/ITR.</li>
+<li>Each template holds client, service lines, amount, frequency, day of month and an end date (optional).</li>
+<li>On the due day the portal creates a <b>draft</b> (never issues automatically) and shows it in the notification bell and on Home: "4 recurring drafts ready to review".</li>
+<li>One click to review and issue; the period is filled in, e.g. "Accounting services – October 2026".</li>
+<li>Runs on a free Netlify scheduled function, or when an admin opens the portal.</li>
+</ul>
+
+<h2>4. Mobile experience</h2>
+<table>
+<tr><th>Enhancement</th><th>Description</th><th>Priority</th><th>Effort</th></tr>
+<tr><td><b>Install as an app (PWA)</b></td><td>Home-screen icon with the firm logo, opens full-screen, loads quickly. No app store needed.</td><td><span class="pill p1">Next</span></td><td>S</td></tr>
+<tr><td><b>Bottom navigation bar</b></td><td>On phones: Home · Invoices · + · Clients · More, instead of the top menu.</td><td><span class="pill p1">Next</span></td><td>S</td></tr>
+<tr><td><b>Sticky action buttons</b></td><td>Save / Create / Issue fixed at the bottom of forms; larger tap targets.</td><td><span class="pill p2">Later</span></td><td>S</td></tr>
+<tr><td><b>Swipe actions</b></td><td>Swipe right to mark paid, left to send a reminder.</td><td><span class="pill p3">Someday</span></td><td>M</td></tr>
+</table>
+
+<h2>5. Security</h2>
+<table>
+<tr><th>Enhancement</th><th>Description</th><th>Priority</th><th>Effort</th></tr>
+<tr><td><b>Firebase App Check</b></td><td>Only requests from the real website (verified by free reCAPTCHA) can reach the database.</td><td><span class="pill p1">Next</span></td><td>S</td></tr>
+<tr><td><b>Sample-data double lock</b></td><td>The test-site "Load sample data" button also checks that the connected Firebase project id contains "staging"/"test", so a wrong Netlify setting can never add sample data to the live project.</td><td><span class="pill p1">Next</span></td><td>S</td></tr>
+<tr><td><b>Login alerts</b></td><td>Email the owners when someone signs in from a new device.</td><td><span class="pill p2">Later</span></td><td>M</td></tr>
+</table>
+
+<h2>6. Invoicing</h2>
+<table>
+<tr><th>Enhancement</th><th>Description</th><th>Priority</th><th>Effort</th></tr>
+<tr><td><b>Part / advance payments</b></td><td>Record several payments against one invoice; balance due shown on the invoice and PDF.</td><td><span class="pill p2">Later</span></td><td>M</td></tr>
+<tr><td><b>TDS summary</b></td><td>TDS deducted per client and per quarter, for Form 26AS reconciliation.</td><td><span class="pill p2">Later</span></td><td>S</td></tr>
+<tr><td><b>Credit notes</b></td><td>The proper GST way to correct an issued invoice, with its own number series.</td><td><span class="pill p2">Later</span></td><td>M</td></tr>
+<tr><td><b>Quotation / estimate</b></td><td>Separate "QTN" series that converts into an invoice in one click.</td><td><span class="pill p2">Later</span></td><td>M</td></tr>
+<tr><td><b>Discount line</b></td><td>Optional discount on an invoice before tax.</td><td><span class="pill p3">Someday</span></td><td>S</td></tr>
+<tr><td><b>Assessment year field</b></td><td>Dropdown for ITR work, e.g. "ITR filing, AY 2026-27".</td><td><span class="pill p2">Later</span></td><td>S</td></tr>
+<tr><td><b>Remember last service</b></td><td>Pre-fill the last service and price used for a client.</td><td><span class="pill p2">Later</span></td><td>S</td></tr>
+</table>
+
+<h2>7. Clients</h2>
+<table>
+<tr><th>Enhancement</th><th>Description</th><th>Priority</th><th>Effort</th></tr>
+<tr><td><b>Compliance calendar</b></td><td>GST return and ITR due dates per client, with Home reminders such as "5 clients' GSTR-3B due in 3 days".</td><td><span class="pill p2">Later</span></td><td>M</td></tr>
+<tr><td><b>Document checklist</b></td><td>Text checklist of documents received (PAN, Form 16, bank statements). No file uploads, to stay on the free plan.</td><td><span class="pill p3">Someday</span></td><td>S</td></tr>
+<tr><td><b>Client avatars</b></td><td>Coloured initials next to client names in lists.</td><td><span class="pill p3">Someday</span></td><td>S</td></tr>
+</table>
+
+<h2>8. PDF and branding</h2>
+<table>
+<tr><th>Enhancement</th><th>Description</th><th>Priority</th><th>Effort</th></tr>
+<tr><td><b>Invoice designs</b></td><td>Choose Classic, Modern or Minimal in Settings.</td><td><span class="pill p3">Someday</span></td><td>M</td></tr>
+<tr><td><b>Signature and seal</b></td><td>Signature image and company seal, plus date/time stamp. Stored in the database (small images), not Cloud Storage.</td><td><span class="pill p2">Later</span></td><td>S</td></tr>
+<tr><td><b>Bilingual PDF</b></td><td>Headings in Telugu and English.</td><td><span class="pill p3">Someday</span></td><td>M</td></tr>
+</table>
+
+<h2>9. Everyday use, engagement and help</h2>
+<table>
+<tr><th>Enhancement</th><th>Description</th><th>Priority</th><th>Effort</th></tr>
+<tr><td><b>Autosave drafts</b></td><td>Save while typing, with a "Saved ✓" tick.</td><td><span class="pill p2">Later</span></td><td>S</td></tr>
+<tr><td><b>Undo</b></td><td>"Invoice deleted · Undo (5 s)" after delete, mark paid or cancel.</td><td><span class="pill p2">Later</span></td><td>M</td></tr>
+<tr><td><b>Bulk select</b></td><td>Tick several invoices: download PDFs as a zip, mark paid, export.</td><td><span class="pill p2">Later</span></td><td>M</td></tr>
+<tr><td><b>Live invoice preview</b></td><td>PDF preview beside the form on desktop, updating as you type.</td><td><span class="pill p3">Someday</span></td><td>M</td></tr>
+<tr><td><b>Due-date calendar</b></td><td>Month view of invoice due dates, events and compliance deadlines.</td><td><span class="pill p2">Later</span></td><td>M</td></tr>
+<tr><td><b>Browser notifications</b></td><td>Optional pop-ups for task reminders and overdue invoices while the portal is open.</td><td><span class="pill p3">Someday</span></td><td>S</td></tr>
+<tr><td><b>Year-in-review</b></td><td>Each April: total billed, top clients, busiest month, average days to get paid.</td><td><span class="pill p2">Later</span></td><td>S</td></tr>
+<tr><td><b>Collection streak</b></td><td>"Paid on time: 8 clients in a row".</td><td><span class="pill p3">Someday</span></td><td>S</td></tr>
+<tr><td><b>Accent colour</b></td><td>Each user picks an accent colour besides light/dark theme.</td><td><span class="pill p3">Someday</span></td><td>S</td></tr>
+<tr><td><b>Guided tour</b></td><td>4–5 tooltips for first-time users.</td><td><span class="pill p3">Someday</span></td><td>S</td></tr>
+<tr><td><b>Settings completeness meter</b></td><td>"Firm profile 80% complete: add UPI ID to show the QR code".</td><td><span class="pill p2">Later</span></td><td>S</td></tr>
+</table>
+
+<h2>10. Communication</h2>
+<table>
+<tr><th>Enhancement</th><th>Description</th><th>Priority</th><th>Cost</th></tr>
+<tr><td><b>Send email from the portal</b></td><td>Email with the PDF attached directly, instead of opening the mail app. Uses Brevo (300/day free) via a Netlify function.</td><td><span class="pill p2">Later</span></td><td><span class="pill free">Free</span></td></tr>
+<tr><td><b>WhatsApp Business API</b></td><td>Automatic WhatsApp reminders without opening WhatsApp.</td><td><span class="pill p3">Someday</span></td><td><span class="pill paid">Per message</span></td></tr>
+</table>
+
+<h2>11. Bigger future steps</h2>
+<table>
+<tr><th>Enhancement</th><th>Description</th><th>Cost</th></tr>
+<tr><td><b>Custom domain</b></td><td>e.g. invoices.lingeshwarca.in.</td><td><span class="pill fee">≈ ₹800–1,200 / year</span></td></tr>
+<tr><td><b>Client portal</b></td><td>Clients sign in to view and pay invoices and download statements.</td><td><span class="pill free">Free</span> (L effort)</td></tr>
+<tr><td><b>Online payments</b></td><td>Razorpay / Cashfree; invoice marked paid automatically.</td><td><span class="pill paid">Gateway fees</span></td></tr>
+<tr><td><b>Multi-branch / multi-firm</b></td><td>Separate numbering and branding per office.</td><td><span class="pill free">Free</span> (L effort)</td></tr>
+<tr><td><b>E-invoicing (IRN) &amp; e-way bill</b></td><td>Only if required by GST turnover limits.</td><td><span class="pill fee">Depends on provider</span></td></tr>
+</table>
+
+<div class="note"><b>Ground rules for every enhancement:</b> Firebase stays on the free Spark plan (no Cloud Functions, Cloud Storage or managed backups); secrets stay in Netlify environment variables; each batch is built locally, shown with screenshots, tested, and deployed only after approval.</div>
+
+<h2>12. Already built (for reference)</h2>
+<p style="font-size:9.5pt">Payment reminders · receipts · client statements · Reports page · client tags, notes and CSV import · PAID/DRAFT watermarks and clickable UPI link · Home "Today" panel, charts, goal ring, weekly summary, activity feed, nudges, milestones · search palette (Ctrl+K) and shortcuts · notification bell · editable message templates · activity log · duplicate invoice · due-date presets · skeleton loaders, empty states, status colours, overdue badges, confetti · floating "+" on phones · inline help tips · three access levels (owner, admin without revenue, staff) · only owners add, change or remove users · access level chosen when adding a user · PAID stamp on invoice PDFs · back links on invoice and client pages · invoice-number search in Clients · Newest / Oldest invoice sort · test site (staging branch, separate test Firebase project, "TEST SITE" banner, Load sample data button).</p>
+</body></html>

@@ -1,0 +1,206 @@
+<!doctype html><html><head><meta charset="utf-8"><title>LKA Invoices – Users, Admin &amp; Limits Guide</title><style>
+@page { size: A4; margin: 16mm 14mm 18mm; }
+body { font-family: Arial, Helvetica, sans-serif; color:#1f2937; font-size:10.5pt; line-height:1.45; }
+h1 { color:#0c629b; font-size:22pt; margin:0 0 2mm; }
+h2 { color:#0c629b; font-size:14pt; border-bottom:2px solid #0c629b; padding-bottom:1.5mm; margin:8mm 0 3mm; page-break-after:avoid; }
+h3 { font-size:11.5pt; margin:5mm 0 2mm; page-break-after:avoid; }
+.sub { color:#4b5563; margin:0 0 6mm; }
+table { width:100%; border-collapse:collapse; margin:2mm 0 4mm; page-break-inside:auto; }
+tr { page-break-inside:avoid; }
+th { background:#0c629b; color:#fff; text-align:left; padding:2mm 2.5mm; font-size:9.5pt; }
+td { border-bottom:1px solid #e5e7eb; padding:1.8mm 2.5mm; vertical-align:top; font-size:9.5pt; }
+td:first-child { white-space:nowrap; }
+code { font-family: "Courier New", monospace; font-size:9pt; background:#f1f5f9; padding:0 1mm; border-radius:1mm; }
+.diagram { display:grid; grid-template-columns:1fr 1fr; gap:4mm; margin:3mm 0; }
+.box { border:1.5px solid #0c629b; border-radius:2mm; padding:3mm; background:#f8fbfe; page-break-inside:avoid; }
+.box b { color:#0c629b; }
+.box ul { margin:1mm 0 0 4mm; padding:0; }
+.full { grid-column: 1 / span 2; }
+.arrow2 { text-align:center; color:#0c629b; font-weight:bold; margin:-1mm 0; }
+.arrow { text-align:center; color:#0c629b; font-weight:bold; grid-column:1 / span 2; margin:-1mm 0; }
+ol li, ul li { margin-bottom:1mm; }
+.note { background:#fef9c3; border-left:3px solid #ca8a04; padding:2mm 3mm; margin:3mm 0; }
+.footer { color:#6b7280; font-size:8.5pt; margin-top:8mm; border-top:1px solid #e5e7eb; padding-top:2mm; }
+
+.ok { color:#15803d; font-weight:bold; } .no { color:#b91c1c; font-weight:bold; }
+.warn { background:#fee2e2; border-left:3px solid #b91c1c; padding:2mm 3mm; margin:3mm 0; }
+.tip { background:#e0f2fe; border-left:3px solid #0c629b; padding:2mm 3mm; margin:3mm 0; }
+td.c { text-align:center; white-space:nowrap; }
+.step { page-break-inside:avoid; }
+</style></head><body>
+<h1>LKA Invoices</h1>
+<p class="sub">Managing users &amp; admin accounts · Firebase clean-up · Portal limits<br>
+Lingeshwar Kaparthi &amp; Associates · Live app: lingeshwarca-invoice.netlify.app · Firebase project: ca-invoice-app · Updated October 2026</p>
+
+<h2>1. Access levels: who can do what</h2>
+<p>Every person has a <b>role</b> (ADMIN or STAFF) and two <b>permissions</b> that an owner switches on or off in <b>Settings → Users</b>:</p>
+<ul>
+<li><b>Revenue &amp; reports</b>: revenue totals on Home, the Reports page, CSV export, monthly goal and Backup. ADMINs only.</li>
+<li><b>Payments, receipts &amp; statements</b>: record payments, see payment details, receipts and client statements.</li>
+</ul>
+<p>The firm uses three access levels:</p>
+<table><tr><th style="width:52%">What they can do</th><th style="text-align:center">Admin A<br>Owner</th><th style="text-align:center">Admin B<br>Admin, no revenue</th><th style="text-align:center">Staff</th></tr>
+<tr><td class="k" style="color:#374151">Role · Revenue · Payments</td><td class="c">ADMIN · On · On</td><td class="c">ADMIN · Off · Off</td><td class="c">STAFF · Off · On</td></tr>
+<tr><td colspan="4" style="background:#eef6fc;font-weight:bold;color:#0c629b"><b>Home &amp; work</b></td></tr>
+<tr><td>Sign in; Home with tasks, events, notes, links, overdue and unpaid counts, nudges, recent activity</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c ok">Yes</td></tr>
+<tr><td>Revenue on Home: ₹ month / year tiles, 6-month chart, monthly goal ring, weekly ₹ totals, ₹ milestones</td><td class="c ok">Yes</td><td class="c no">No</td><td class="c no">No</td></tr>
+<tr><td>Reports page (billed vs received, collection rate, ageing, top clients, who owes)</td><td class="c ok">Yes</td><td class="c no">No</td><td class="c no">No</td></tr>
+<tr><td colspan="4" style="background:#eef6fc;font-weight:bold;color:#0c629b"><b>Invoices</b></td></tr>
+<tr><td>See invoice list and each invoice (including its amount); search; notification bell</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c ok">Yes</td></tr>
+<tr><td>Create / edit drafts, issue invoices, duplicate</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c ok">Yes</td></tr>
+<tr><td>View / download PDF; send by email or WhatsApp; payment reminders</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c ok">Yes</td></tr>
+<tr><td>Record payments (mark as paid)</td><td class="c ok">Yes</td><td class="c no">No</td><td class="c ok">Yes</td></tr>
+<tr><td>See payment details on an invoice; download / send receipts</td><td class="c ok">Yes</td><td class="c no">No</td><td class="c ok">Yes</td></tr>
+<tr><td>Export invoices to CSV</td><td class="c ok">Yes</td><td class="c no">No</td><td class="c no">No</td></tr>
+<tr><td>Cancel numbered invoices</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c no">No</td></tr>
+<tr><td>Delete invoices (one, or "Delete all")</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c no">No</td></tr>
+<tr><td colspan="4" style="background:#eef6fc;font-weight:bold;color:#0c629b"><b>Clients</b></td></tr>
+<tr><td>Add and edit clients, tags and internal notes</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c ok">Yes</td></tr>
+<tr><td>Client statements (billed / received / balance PDF)</td><td class="c ok">Yes</td><td class="c no">No</td><td class="c ok">Yes</td></tr>
+<tr><td>Delete clients; import clients from CSV</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c no">No</td></tr>
+<tr><td colspan="4" style="background:#eef6fc;font-weight:bold;color:#0c629b"><b>Settings &amp; admin</b></td></tr>
+<tr><td>Firm details, bank / UPI, GST, services, signature, branding, message templates</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c no">No</td></tr>
+<tr><td>Monthly collection goal</td><td class="c ok">Yes</td><td class="c no">No</td><td class="c no">No</td></tr>
+<tr><td>Restart invoice numbering at 0001; Activity log</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c no">No</td></tr>
+<tr><td>Add users, change roles and access, disable / enable / delete users</td><td class="c ok">Yes</td><td class="c no">No (view only)</td><td class="c no">No</td></tr>
+<tr><td>Turn "Revenue &amp; reports" / "Payments, receipts &amp; statements" on or off for others</td><td class="c ok">Yes</td><td class="c no">No</td><td class="c no">No</td></tr>
+<tr><td>Backup download (contains all data, including revenue)</td><td class="c ok">Yes</td><td class="c no">No</td><td class="c no">No</td></tr>
+</table>
+<div class="tip"><b>How it is enforced:</b> recording payments, deleting and changing access are checked by the database rules and server functions, not just hidden in the browser. Revenue <i>totals</i> are hidden from the screens. Admin B and Staff can still see each invoice's own amount (needed to create and send invoices), so this keeps totals need-to-know rather than secret.</div>
+
+<h3>1.1 Setting up the three levels</h3>
+<ol>
+<li><b>Admin A (owner).</b> The first admin (set up with the setup code) is an owner. <b>Accounts that were admins before this update are owners automatically.</b> Owners show the badge <i>"Owner · full access"</i> in Settings → Users.</li>
+<li><b>Admin B.</b> Settings → Users → Add a user → enter their Google email, choose the access level <b>Admin · no revenue, no payments</b> → Add user. They get it at first sign-in; nothing else to do.</li>
+<li><b>Staff.</b> Same, but choose <b>Staff · with payments</b> (payments, receipts and statements on).</li>
+<li><b>Adjusting.</b> As an owner, use the two switches under each person in Settings → Users. They are signed out and get the new access when they sign in again. Turning on "Revenue &amp; reports" makes that admin an owner, so only do it for people who should see everything.</li>
+</ol>
+<div class="warn"><b>Check after updating:</b> if you added a second admin <i>before</i> this update, they are also an owner now. Open Settings → Users and switch <b>off</b> "Revenue &amp; reports" and "Payments, receipts &amp; statements" for them to make them Admin B. Keep at least <b>two owners</b> if possible (or one owner plus a safe way back: section 4). Only owners can add, change or remove users; Admin B sees the Users list read-only.</div>
+
+
+<div class="step"><h3>1.2 Test results: what each person sees</h3>
+<p>Checked on sample test data (local test mode) by signing in as each person, October 2026. Every result matches the table above. "Refused" means the database rules or server functions also block the action, not just the screen.</p>
+<table><tr><th style="width:5%">#</th><th style="width:35%">Test case</th><th style="text-align:center">A · Owner</th><th style="text-align:center">B · Admin, no revenue, no payments</th><th style="text-align:center">C · Staff, with payments</th></tr>
+<tr><td class="c">1</td><td style="white-space:normal">Menu shows</td><td class="c">Home, Invoices, Clients, Reports, Settings</td><td class="c">Home, Invoices, Clients, Settings</td><td class="c">Home, Invoices, Clients</td></tr>
+<tr><td class="c">2</td><td style="white-space:normal">Revenue tiles on Home</td><td class="c ok">Shown</td><td class="c no">Hidden</td><td class="c no">Hidden</td></tr>
+<tr><td class="c">3</td><td style="white-space:normal">Open the Reports page</td><td class="c ok">Opens</td><td class="c no">Sent to Home</td><td class="c no">Sent to Home</td></tr>
+<tr><td class="c">4</td><td style="white-space:normal">Unpaid invoice: Mark as paid</td><td class="c ok">Yes</td><td class="c no">No</td><td class="c ok">Yes</td></tr>
+<tr><td class="c">5</td><td style="white-space:normal">Unpaid invoice: payment reminder</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c ok">Yes</td></tr>
+<tr><td class="c">6</td><td style="white-space:normal">Delete an invoice</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c no">No</td></tr>
+<tr><td class="c">7</td><td style="white-space:normal">Invoices list: Export CSV</td><td class="c ok">Yes</td><td class="c no">No</td><td class="c no">No</td></tr>
+<tr><td class="c">8</td><td style="white-space:normal">Invoices list: Delete all</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c no">No</td></tr>
+<tr><td class="c">9</td><td style="white-space:normal">Client page: Statement of account</td><td class="c ok">Yes</td><td class="c no">No</td><td class="c ok">Yes</td></tr>
+<tr><td class="c">10</td><td style="white-space:normal">Client page: Delete client</td><td class="c ok">Yes</td><td class="c ok">Yes</td><td class="c no">No</td></tr>
+<tr><td class="c">11</td><td style="white-space:normal">Settings → Users tab</td><td class="c ok">Full control</td><td class="c" style="color:#b45309;font-weight:bold">View only</td><td class="c no">No access</td></tr>
+<tr><td class="c">12</td><td style="white-space:normal">Add a user</td><td class="c ok">Yes, all 5 levels</td><td class="c no">No (hidden and refused)</td><td class="c no">No</td></tr>
+<tr><td class="c">13</td><td style="white-space:normal">Make ADMIN/STAFF, Disable, Delete, permission switches</td><td class="c ok">Yes</td><td class="c no">No (hidden and refused)</td><td class="c no">No</td></tr>
+</table></div>
+
+<h2>2. Managing users inside the portal (recommended)</h2>
+<p>Everything is in <b>Settings → Users</b> (visible to ADMINs; only <b>owners</b> can add, change or remove users). The portal method is preferred because it cleans up everything in one click.</p>
+
+<div class="step"><h3>2.1 Add a user</h3>
+<ol><li>Under <b>Add a user</b>, type the person's <b>Google email</b> (Gmail or Google Workspace address).</li>
+<li>Choose the <b>Access level</b> and click <b>Add user</b>. Owners can pick any of: <i>Owner · full access</i>, <i>Admin · no revenue</i>, <i>Admin · no revenue, no payments</i>, <i>Staff · with payments</i>, <i>Staff · no payments</i>. Admins who are not owners can only pick <i>Admin · no revenue, no payments</i> or <i>Staff · with payments</i>.</li>
+<li>They appear under <b>Waiting to sign in</b>.</li>
+<li>Send them the site link. They click <b>Sign in with Google</b> using that same email, and they are let in automatically.</li>
+<li>They then move to <b>People with access</b>, which shows "Active now" or when they were last active.</li></ol>
+<p>To cancel an invite before it is used, click <b>Remove</b> next to the email under <i>Waiting to sign in</i>.</p></div>
+
+<div class="step"><h3>2.2 Change someone's role</h3>
+<ol><li>Find the person under <b>People with access</b>.</li>
+<li>Click <b>Make ADMIN</b> or <b>Make STAFF</b> and confirm. A role change never gives revenue access; an owner switches that on separately.</li>
+<li>They are signed out and get the new role when they sign in again.</li></ol></div>
+
+<div class="step"><h3>2.3 Block someone temporarily</h3>
+<p>For leave, a lost phone or a suspected misuse:</p>
+<ol><li>Click <b>Disable</b> on their row and confirm. They are signed out at once and cannot sign in.</li>
+<li>To restore access, click <b>Enable</b>. Nothing is lost.</li></ol></div>
+
+<div class="step"><h3>2.4 Delete someone permanently</h3>
+<p>For example, when a person leaves the firm:</p>
+<ol><li>Click <b>Delete</b> on their row.</li>
+<li>Type <b>DELETE</b> in the box and click <b>Delete user</b>.</li></ol>
+<p>This removes:</p>
+<ul><li>their sign-in account and access</li><li>any pending invite</li><li>their private tasks, events, notes and links</li></ul>
+<p><b>Invoices and clients they created are kept.</b> To give them access again later, add their email again as in 2.1.</p></div>
+
+<h2>3. Managing users in the Firebase console (backup method)</h2>
+<p>Use this only if the portal is not available, or to double-check. Open <b>https://console.firebase.google.com</b> and select the project <b>ca-invoice-app</b>.</p>
+
+<div class="step"><h3>3.1 Find a user</h3>
+<ol><li>In the left menu, open <b>Build → Authentication → Users</b>.</li>
+<li>Each row shows:
+<ul><li>the email</li><li>the sign-in method (Google or email)</li><li>the <b>User UID</b>, a long code you will need below</li></ul></li></ol></div>
+
+<div class="step"><h3>3.2 Disable a user (temporary)</h3>
+<ol><li>Click <b>⋮</b> at the end of the user's row, then <b>Disable account</b>.</li>
+<li>To undo, use <b>Enable account</b> from the same menu.</li>
+<li>Also click <b>Disable</b> in the portal, so the Users page shows the correct status.</li></ol></div>
+
+<div class="step"><h3>3.3 Delete a user completely: do all four steps</h3>
+<ol><li><b>Authentication → Users</b>:
+<ul><li>Note the person's <b>User UID</b>.</li>
+<li>Click <b>⋮</b>, then <b>Delete account</b>, and confirm. They can no longer sign in.</li></ul></li>
+<li><b>Build → Firestore Database → Data</b>:
+<ul><li>Open the <code>users</code> collection and find the document whose name equals that UID.</li>
+<li>Use the <b>⋮</b> menu at the top of the document to choose <b>Delete document</b>.</li>
+<li>Without this step, they still appear on the portal's Users page.</li></ul></li>
+<li>In the <code>invites</code> collection, if a document named with their email exists, delete it. Otherwise they could sign in again and regain access.</li>
+<li>Optional: in the <code>tasks</code>, <code>events</code>, <code>notes</code> and <code>links</code> collections, delete documents whose <code>ownerUid</code> equals that UID.</li></ol></div>
+
+<div class="step"><h3>3.4 What the console cannot do</h3>
+<ul><li><b>Change roles.</b> ADMIN / STAFF is stored in a protected place the console does not show. Change roles only in the portal (2.2).</li>
+<li><b>Give access by itself.</b> If someone signs in with Google without being on the Users list, Firebase creates a sign-in account for them. They only see "No access yet", and these stray accounts are safe to delete in Authentication.</li></ul></div>
+
+<div class="warn"><b>Never delete these Firestore collections or documents in the console:</b>
+<ul><li><code>counters</code>: invoice numbering</li>
+<li><code>settings</code>: firm details</li>
+<li><code>system</code>: setup lock</li>
+<li><code>auditLog</code>: invoice history</li></ul>
+Delete invoices only in the portal (Invoices page), so the history log records it.</div>
+
+<h2>4. If all admin access is lost</h2>
+<ol><li>In Netlify, open <b>Site configuration → Environment variables</b>:
+<ul><li>Add <code>SETUP_CODE</code> with a new secret of 12 or more characters.</li>
+<li>Go to <b>Deploys → Trigger deploy → Deploy site</b>.</li></ul></li>
+<li>In the Firebase console, open <b>Firestore Database → Data → system</b> and delete the document <b>bootstrap</b>.</li>
+<li>Sign in to the portal with Google. On the "No access yet" screen, enter the setup code. You become ADMIN.</li>
+<li>Delete <code>SETUP_CODE</code> from Netlify again and redeploy.</li></ol>
+<div class="tip">Step 3 works only when <b>no</b> admin exists at all. If an admin account still exists but nobody can use it, first delete that account as described in 3.3. Keeping two admins avoids this situation entirely.</div>
+
+<h2>5. Good practice checklist</h2>
+<ul><li>Delete <code>SETUP_CODE</code> from Netlify once the first admin is set up, then redeploy.</li>
+<li>Keep two ADMIN accounts.</li>
+<li>Delete users who leave the firm on their last day (2.4). Use Disable for temporary blocks.</li>
+<li>Once a month, take a backup in <b>Settings → Backup</b> and keep the file safe (Google Drive or a USB drive). The free Firebase plan has no automatic backups.</li>
+<li>Sign out on shared computers. The portal also signs you out automatically after 30 minutes of inactivity.</li>
+<li>Share only invoice PDFs with clients, never the portal link or your login.</li></ul>
+
+<h2>6. Limits for clients and invoices</h2>
+<p>The portal has no fixed limit on how many clients or invoices it stores. The practical limits come from the invoice number format and Firebase's free (Spark) plan.</p>
+<table><tr><th>Limit</th><th>Value</th><th>What it means</th></tr>
+<tr><td><b>Invoices per financial year</b></td><td>9,999</td><td>Numbers have 4 digits (LKA/2026-27/<b>0001</b> to <b>9999</b>) and restart every 1 April. That is about 27 invoices a day, every day.</td></tr>
+<tr><td><b>Clients</b></td><td>No app limit</td><td>Tens of thousands would still fit.</td></tr>
+<tr><td>Service lines per invoice</td><td>50</td><td>Plus up to 30 reimbursement lines.</td></tr>
+<tr><td>Services in the Settings list</td><td>100</td><td>Each with an optional default price.</td></tr>
+<tr><td><b>Total storage</b> (free plan)</td><td>1 GB</td><td>One invoice with its history is about 5 KB, so roughly <b>150,000–200,000 invoices</b> in total: decades of use for a small firm.</td></tr>
+<tr><td>Reads per day (free plan)</td><td>50,000</td><td>Opening the invoice list uses about 25 reads; a busy day uses a few hundred to a couple of thousand.</td></tr>
+<tr><td>Writes per day (free plan)</td><td>20,000</td><td>Creating and issuing an invoice uses about 4–6 writes.</td></tr>
+<tr><td>Deletes per day (free plan)</td><td>20,000</td><td>Matters only for very large "Delete all" actions.</td></tr></table>
+<div class="tip"><b>If a daily limit is reached:</b>
+<ul><li>The portal shows an error until the limit resets, at about <b>1:30 pm IST</b> each day.</li>
+<li><b>There are never any charges.</b> The free plan simply pauses; it does not bill you, and no card is needed.</li>
+<li>With normal use you will not come close. Only very large one-off jobs could reach a limit, such as a backup or CSV export of thousands of invoices.</li>
+<li>You can check usage in the Firebase console under <b>Firestore Database → Usage</b>.</li></ul></div>
+
+
+<h2>7. Trying access levels on the test site</h2>
+<p>Use the test site (<b>staging--lingeshwarca-invoice.netlify.app</b>, yellow "TEST SITE" banner) to try changes and access levels without touching real data:</p>
+<ul>
+<li><b>Owner:</b> make yourself owner of the test project with its setup code (or <code>npm run create-admin -- --key …</code>).</li>
+<li><b>Sample data:</b> Settings → <b>Test site: sample data</b> → <b>Load sample data</b> adds 6 made-up clients (marked TEST) and 10 invoices. Only owners see it, and only on test addresses.</li>
+<li><b>Admin B and Staff logins:</b> add two of your other Gmail addresses under Settings → Users with those access levels, or run <code>npm run seed:test -- --key … --password …</code> to create <code>adminb.test@example.com</code> and <code>staff.test@example.com</code> (sign in with email &amp; password).</li>
+<li>Never put real client data on the test site. Setup steps for both sites: <b>docs/LKA-Invoices-Environment-Setup.pdf</b>.</li>
+</ul>
+</body></html>
