@@ -3,13 +3,15 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { callFunction } from '../api';
 import { useDialog } from '../components/Dialog';
 import { SettingsTabs } from '../components/SettingsTabs';
-import { useAuth } from '../auth';
+import { useActor, useAuth } from '../auth';
 import { Alert, Button, Card, Field, PageHeader, Switch, errorMessage } from '../components/ui';
 import { saveSettings } from '../data/settings';
-import { db } from '../firebase';
+import { loadSampleData, SAMPLE_COUNTS } from '../data/sampleData';
+import { db, USING_EMULATORS } from '../firebase';
 import { formatInvoiceNumber, fyForDate, todayIST } from '../lib/fy';
 import { DEFAULT_SETTINGS } from '../lib/defaults';
 import { resizeLogo } from '../lib/image';
+import { isTestHost } from '../lib/siteEnv';
 import { paiseToInput, parseRupeesToPaise } from '../lib/money';
 import { INDIAN_STATES, STATES_BY_NAME } from '../lib/states';
 import type { FirmSettings } from '../lib/types';
@@ -102,6 +104,53 @@ function validate(s: FirmSettings, gstRate: string): Errors {
     if (!SAC_RE.test(c.code)) e[`sac${i}`] = 'SAC must be 4–8 digits';
   });
   return e;
+}
+
+/** TEST SITE ONLY: fill an empty test project with made-up clients and invoices. */
+function SampleDataCard() {
+  const dialog = useDialog();
+  const actor = useActor();
+  const { settings } = useSettings();
+  const [busy, setBusy] = useState('');
+  const [msg, setMsg] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
+
+  async function load() {
+    const ok = await dialog.confirm({
+      title: 'Load sample data?',
+      message: `Adds ${SAMPLE_COUNTS.clients} made-up clients and ${SAMPLE_COUNTS.invoices} invoices (paid, unpaid, cancelled and drafts) to this TEST site, using the next invoice numbers. Takes about a minute.`,
+      confirmText: 'Load sample data',
+    });
+    if (!ok || !actor) return;
+    setMsg(null);
+    try {
+      await loadSampleData(db, actor, settings, setBusy);
+      setMsg({ kind: 'success', text: 'Sample data loaded. Open Clients or Invoices to see it.' });
+    } catch (e) {
+      setMsg({ kind: 'error', text: errorMessage(e) });
+    } finally {
+      setBusy('');
+    }
+  }
+
+  return (
+    <Card title="Test site: sample data">
+      {msg && (
+        <div className="mb-3">
+          <Alert kind={msg.kind}>{msg.text}</Alert>
+        </div>
+      )}
+      <p className="text-sm text-slate-600">
+        Only shown on the test site. Adds made-up clients (marked TEST) and invoices so every screen can be tried. Save your firm details above first, so the
+        invoices use them.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Button type="button" variant="secondary" busy={Boolean(busy)} onClick={load}>
+          Load sample data
+        </Button>
+        {busy && <span className="text-sm text-slate-500">{busy}</span>}
+      </div>
+    </Card>
+  );
 }
 
 export default function Settings() {
@@ -335,6 +384,7 @@ export default function Settings() {
       </Card>
 
       <NumberingCard prefix={s.invoicePrefix} />
+      {fin && (USING_EMULATORS || isTestHost(window.location.hostname)) && <SampleDataCard />}
 
       <Card title="Goals & messages">
         <div className="grid gap-4 sm:grid-cols-3">
