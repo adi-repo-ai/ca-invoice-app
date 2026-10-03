@@ -248,6 +248,30 @@ the local `.env`.
 
 ---
 
+## 4a. Test site (staging)
+
+Changes go to the `staging` branch first; `main` is the live site.
+
+| | Live | Test |
+|---|---|---|
+| Branch | `main` | `staging` |
+| Address | lingeshwarca-invoice.netlify.app | staging--lingeshwarca-invoice.netlify.app |
+| Firebase project | `ca-invoice-app` | `ca-invoice-app-staging` |
+
+- Netlify builds `staging` as a branch deploy (0 credits). Its environment variables use
+  "Different value for each deploy context": Production → live project, Branch deploys /
+  Deploy Previews → test project.
+- Add `staging--lingeshwarca-invoice.netlify.app` (two dashes) to the test project's
+  Authentication → Authorized domains.
+- Rules for the test project: `npx firebase deploy --only firestore:rules,firestore:indexes --project ca-invoice-app-staging`
+- The test site shows a yellow "TEST SITE" banner (any Netlify address containing `--`).
+- Sample data (Cloud Shell, with the TEST project's service-account values exported, after
+  you are an ADMIN there):
+  `npm run seed:test -- --owner you@gmail.com --password 'Test12345' --live`
+  It refuses any project whose id does not contain "staging" or "test", adds 6 clients,
+  18 invoices and a draft, and (with `--password`) the logins `adminb.test@example.com`
+  and `staff.test@example.com` for the other two access levels.
+
 ## 5. Operations
 
 ### 5.1 Users and sign-in

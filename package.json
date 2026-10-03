@@ -16,7 +16,8 @@
     "test:all": "npm run test && npm run test:emulator",
     "emulators": "firebase emulators:start --project demo-lka-invoices --only auth,firestore --import ./.emulator-data --export-on-exit ./.emulator-data",
     "seed:emulator": "tsx scripts/seed-emulator.ts",
-    "create-admin": "tsx scripts/create-admin.ts"
+    "create-admin": "tsx scripts/create-admin.ts",
+    "seed:test": "tsx scripts/seed-test-data.ts"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.9.0",

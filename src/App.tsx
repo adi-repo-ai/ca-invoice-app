@@ -8,6 +8,7 @@ import { Alert, Button, Loading, errorMessage } from './components/ui';
 import { auth } from './firebase';
 import Login from './pages/Login';
 import { SettingsProvider } from './settings-context';
+import { EnvBanner } from './components/EnvBanner';
 
 const Home = lazy(() => import('./pages/Home'));
 const Invoices = lazy(() => import('./pages/Invoices'));
@@ -116,6 +117,7 @@ function RevenueOnly({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <DialogProvider>
+      <EnvBanner />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route
